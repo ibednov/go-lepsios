@@ -1,4 +1,4 @@
-MODULES := log i18n httpx identity auth
+MODULES := log i18n httpx config db identity auth job
 
 .PHONY: lint test tidy sync tools
 

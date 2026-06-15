@@ -2,8 +2,11 @@ go 1.25.0
 
 use (
 	./auth
+	./config
+	./db
 	./httpx
 	./i18n
 	./identity
+	./job
 	./log
 )
