@@ -9,4 +9,5 @@ use (
 	./identity
 	./job
 	./log
+	./rate_limit
 )

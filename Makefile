@@ -1,4 +1,4 @@
-MODULES := log i18n httpx config db identity auth job
+MODULES := log i18n httpx config db identity auth job rate_limit
 
 .PHONY: lint test tidy sync tools
 
