@@ -1,7 +1,9 @@
-go 1.25
+go 1.25.0
 
 use (
+	./auth
 	./httpx
 	./i18n
+	./identity
 	./log
 )
