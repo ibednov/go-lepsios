@@ -25,6 +25,8 @@ type User struct {
 	Provider ProviderID
 	Email    string
 	Roles    []string
+	Plan     string
+	Features []string
 }
 
 // Author is a denormalized author snapshot for audit/display.

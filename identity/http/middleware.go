@@ -55,6 +55,8 @@ func FromJWT(opts ...Option) gin.HandlerFunc {
 				Provider: identity.ProviderID(principal.Provider),
 				Email:    principal.Email,
 				Roles:    principal.Roles,
+				Plan:     principal.Plan,
+				Features: principal.Features,
 			}
 		}
 		if user.Kind == "" {

@@ -116,6 +116,8 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified emailpas
 		Kind:     verified.Kind,
 		Email:    verified.Email,
 		Roles:    verified.Roles,
+		Plan:     verified.Plan,
+		Features: verified.Features,
 	}
 
 	pair, err := m.refresh.Issue(c.Request.Context(), accessClaims)

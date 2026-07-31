@@ -20,6 +20,13 @@ func TestPrincipalContext(t *testing.T) {
 }
 
 func TestToPrincipal(t *testing.T) {
-	p := claims.AccessClaims{UserID: "u1", Provider: provider.LocalEmail2FA}.ToPrincipal()
+	p := claims.AccessClaims{
+		UserID:   "u1",
+		Provider: provider.LocalEmail2FA,
+		Plan:     "standard",
+		Features: []string{"price_monitor"},
+	}.ToPrincipal()
 	require.Equal(t, provider.LocalEmail2FA, p.Provider)
+	require.Equal(t, "standard", p.Plan)
+	require.Equal(t, []string{"price_monitor"}, p.Features)
 }

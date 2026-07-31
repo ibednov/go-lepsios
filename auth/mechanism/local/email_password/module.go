@@ -21,6 +21,8 @@ type VerifiedUser struct {
 	Email    string
 	Kind     identity.ActorKind
 	Roles    []string
+	Plan     string
+	Features []string
 	User     any // optional service-specific user DTO in responses
 }
 
@@ -130,6 +132,8 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified Verified
 		Kind:     verified.Kind,
 		Email:    verified.Email,
 		Roles:    verified.Roles,
+		Plan:     verified.Plan,
+		Features: verified.Features,
 	}
 
 	pair, err := m.refresh.Issue(c.Request.Context(), accessClaims)

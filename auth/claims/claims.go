@@ -8,11 +8,13 @@ import (
 
 // AccessClaims are signed into JWT access tokens.
 type AccessClaims struct {
-	UserID   string            `json:"user_id"`
-	Provider provider.ID       `json:"provider,omitempty"`
+	UserID   string             `json:"user_id"`
+	Provider provider.ID        `json:"provider,omitempty"`
 	Kind     identity.ActorKind `json:"kind,omitempty"`
-	Email    string            `json:"email,omitempty"`
-	Roles    []string          `json:"roles,omitempty"`
+	Email    string             `json:"email,omitempty"`
+	Roles    []string           `json:"roles,omitempty"`
+	Plan     string             `json:"plan,omitempty"`
+	Features []string           `json:"features,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -22,6 +24,8 @@ type Principal struct {
 	Provider provider.ID
 	Email    string
 	Roles    []string
+	Plan     string
+	Features []string
 	Kind     identity.ActorKind
 }
 
@@ -32,6 +36,8 @@ func (c AccessClaims) ToPrincipal() Principal {
 		Provider: c.Provider,
 		Email:    c.Email,
 		Roles:    c.Roles,
+		Plan:     c.Plan,
+		Features: c.Features,
 		Kind:     c.Kind,
 	}
 }
