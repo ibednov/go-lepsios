@@ -10,6 +10,10 @@ Multi-module Go infrastructure library for Alepsios backend services.
 | `i18n` | `github.com/ibednov/go-lepsios/i18n` | Localization bundle |
 | `httpx` | `github.com/ibednov/go-lepsios/httpx` | Gin engine, middleware, API responses |
 
+## Phase 2 plan
+
+Planned extractions (crypto, redis, apperr, GORM db, config blocks, storage, money, exchange):  
+see [../_docs/go-lepsios-phase-2-modules-plan.md](../_docs/go-lepsios-phase-2-modules-plan.md) (monorepo root `_docs/`).
 
 ## Local development
 
