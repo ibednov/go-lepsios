@@ -11,10 +11,14 @@ import (
 
 // RefreshService issues token pairs and manages refresh lifecycle.
 type RefreshService struct {
-	tokens *token.Manager
-	store  Store
-	hash   func(raw string) string
+	tokens        *token.Manager
+	store         Store
+	hash          func(raw string) string
+	resolveClaims ClaimsResolver
 }
+
+// ClaimsResolver rebuilds full access claims from DB on refresh.
+type ClaimsResolver func(ctx context.Context, userID string) (claims.AccessClaims, error)
 
 // NewRefreshService creates a refresh service.
 func NewRefreshService(m *token.Manager, store Store, hash func(raw string) string) *RefreshService {
@@ -22,6 +26,14 @@ func NewRefreshService(m *token.Manager, store Store, hash func(raw string) stri
 		hash = HashToken
 	}
 	return &RefreshService{tokens: m, store: store, hash: hash}
+}
+
+// WithClaimsResolver sets callback to rebuild access claims on refresh.
+func (s *RefreshService) WithClaimsResolver(resolver ClaimsResolver) *RefreshService {
+	if s != nil {
+		s.resolveClaims = resolver
+	}
+	return s
 }
 
 // Issue signs access token and stores refresh token hash.
@@ -75,7 +87,17 @@ func (s *RefreshService) Refresh(ctx context.Context, refreshToken string) (Toke
 		return TokenPair{}, err
 	}
 
-	return s.Issue(ctx, claims.AccessClaims{UserID: userID})
+	return s.Issue(ctx, s.accessClaimsForUser(ctx, userID))
+}
+
+func (s *RefreshService) accessClaimsForUser(ctx context.Context, userID string) claims.AccessClaims {
+	if s.resolveClaims != nil {
+		access, err := s.resolveClaims(ctx, userID)
+		if err == nil {
+			return access
+		}
+	}
+	return claims.AccessClaims{UserID: userID}
 }
 
 // Logout revokes a single refresh token.
