@@ -9,6 +9,7 @@ import (
 // SuccessBody is the standard success JSON envelope.
 type SuccessBody struct {
 	Data    any    `json:"data"`
+	Meta    any    `json:"meta,omitempty"`
 	Message string `json:"message,omitempty"`
 }
 
@@ -20,6 +21,16 @@ func OK(c *gin.Context, data any) {
 // OKWithMessage writes 200 with data and message.
 func OKWithMessage(c *gin.Context, data any, message string) {
 	c.JSON(http.StatusOK, SuccessBody{Data: data, Message: message})
+}
+
+// OKWithMeta writes 200 with data and meta (pagination, etc.).
+func OKWithMeta(c *gin.Context, data, meta any) {
+	c.JSON(http.StatusOK, SuccessBody{Data: data, Meta: meta})
+}
+
+// OKWithMetaAndMessage writes 200 with data, meta and message.
+func OKWithMetaAndMessage(c *gin.Context, data, meta any, message string) {
+	c.JSON(http.StatusOK, SuccessBody{Data: data, Meta: meta, Message: message})
 }
 
 // Created writes 201 with data.

@@ -23,6 +23,19 @@ func TestCreated(t *testing.T) {
 	require.NotNil(t, body.Data)
 }
 
+func TestOKWithMeta(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	response.OKWithMeta(c, []string{"a"}, gin.H{"total": 1, "limit": 50, "offset": 0})
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var body response.SuccessBody
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.NotNil(t, body.Data)
+	require.NotNil(t, body.Meta)
+}
+
 func TestNoContent(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
