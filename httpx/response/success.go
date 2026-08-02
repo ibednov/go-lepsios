@@ -28,6 +28,11 @@ func OKWithMeta(c *gin.Context, data, meta any) {
 	c.JSON(http.StatusOK, SuccessBody{Data: data, Meta: meta})
 }
 
+// OKWithPagination writes 200 with data and Pagination as meta.
+func OKWithPagination(c *gin.Context, data any, p Pagination) {
+	OKWithMeta(c, data, p)
+}
+
 // OKWithMetaAndMessage writes 200 with data, meta and message.
 func OKWithMetaAndMessage(c *gin.Context, data, meta any, message string) {
 	c.JSON(http.StatusOK, SuccessBody{Data: data, Meta: meta, Message: message})
