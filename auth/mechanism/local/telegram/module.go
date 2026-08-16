@@ -93,6 +93,7 @@ func (m *Module) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/session", m.session)
 	rg.POST("/link", m.link)
 	rg.POST("/challenges", m.createChallenge)
+	rg.POST("/challenges/approve", m.approveChallenge) // body.code — для бота
 	rg.GET("/challenges/:id", m.getChallenge)
 	rg.POST("/challenges/:id/approve", m.approveChallenge)
 }
