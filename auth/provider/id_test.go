@@ -18,4 +18,5 @@ func TestParseAndValidate(t *testing.T) {
 
 func TestAll(t *testing.T) {
 	require.Contains(t, provider.All(), provider.LocalEmailPassword)
+	require.Contains(t, provider.All(), provider.Telegram)
 }
