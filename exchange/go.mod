@@ -3,7 +3,7 @@ module github.com/ibednov/go-lepsios/exchange
 go 1.25.0
 
 require (
-	github.com/ibednov/go-lepsios/currency v0.0.0
+	github.com/ibednov/go-lepsios/currency v0.0.0-20260823135235-df098bfd0b1e
 	github.com/ibednov/go-lepsios/log v0.1.0
 	github.com/stretchr/testify v1.11.1
 )
