@@ -11,5 +11,6 @@ use (
 	./identity
 	./job
 	./log
+	./productmatch
 	./rate_limit
 )
