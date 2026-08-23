@@ -9,6 +9,8 @@ Multi-module Go infrastructure library for Alepsios backend services.
 | `log` | `github.com/ibednov/go-lepsios/log` | Structured logging (`zerolog`) |
 | `i18n` | `github.com/ibednov/go-lepsios/i18n` | Localization bundle |
 | `httpx` | `github.com/ibednov/go-lepsios/httpx` | Gin engine, middleware, API responses |
+| `currency` | `github.com/ibednov/go-lepsios/currency` | ISO codes, official rates, BYN-hub converter (incl. CNY) |
+| `exchange` | `github.com/ibednov/go-lepsios/exchange` | Country → FX provider registry (NBRB for BY) |
 
 ## Phase 2 plan
 

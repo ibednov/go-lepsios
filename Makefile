@@ -1,4 +1,4 @@
-MODULES := log i18n httpx config db identity auth job rate_limit
+MODULES := log i18n httpx config db identity auth job rate_limit currency exchange
 
 .PHONY: lint test tidy sync tools
 

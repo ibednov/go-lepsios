@@ -3,7 +3,9 @@ go 1.25.0
 use (
 	./auth
 	./config
+	./currency
 	./db
+	./exchange
 	./httpx
 	./i18n
 	./identity
