@@ -1,19 +1,19 @@
 package httpx
 
 import (
-	"github.com/ibednov/go-lepsios/i18n"
-	"github.com/ibednov/go-lepsios/httpx/middleware"
-	"github.com/ibednov/go-lepsios/log"
 	"github.com/gin-gonic/gin"
+	"github.com/ibednov/go-lepsios/httpx/middleware"
+	"github.com/ibednov/go-lepsios/i18n"
+	"github.com/ibednov/go-lepsios/log"
 	"github.com/rs/zerolog"
 )
 
 // EngineConfig configures the Gin engine.
 type EngineConfig struct {
-	Mode         string
-	CORSOrigins  []string
-	ServiceName  string
-	SkipLogPaths []string
+	Mode           string
+	CORSOrigins    []string
+	ServiceName    string
+	SkipLogPaths   []string
 	LocaleFallback string
 }
 
@@ -24,7 +24,7 @@ func ProvideEngine(cfg EngineConfig, bundle *i18n.Bundle, logger zerolog.Logger)
 	}
 
 	r := gin.New()
-	skip := append([]string{"/health", "/health/live", "/health/ready"}, cfg.SkipLogPaths...)
+	skip := append([]string{"/health", "/health/live", "/health/ready", "/metrics"}, cfg.SkipLogPaths...)
 
 	r.Use(middleware.Recovery())
 	r.Use(middleware.TraceID())

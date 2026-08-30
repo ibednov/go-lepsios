@@ -34,6 +34,7 @@ require (
 	github.com/nicksnyder/go-i18n/v2 v2.6.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/prometheus/client_golang v1.22.0 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.58.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect

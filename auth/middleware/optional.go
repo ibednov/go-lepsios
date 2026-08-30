@@ -1,9 +1,10 @@
 package middleware
 
 import (
+	"github.com/gin-gonic/gin"
 	"github.com/ibednov/go-lepsios/auth/claims"
 	"github.com/ibednov/go-lepsios/auth/validator"
-	"github.com/gin-gonic/gin"
+	httpmw "github.com/ibednov/go-lepsios/httpx/middleware"
 )
 
 // Optional authenticates requests when Bearer JWT is present and valid.
@@ -30,6 +31,7 @@ func Optional(v validator.TokenValidator, opts ...Option) gin.HandlerFunc {
 
 		ctx := claims.SetPrincipal(c.Request.Context(), principal)
 		c.Request = c.Request.WithContext(ctx)
+		c.Set(httpmw.CtxKeyUserID, principal.UserID)
 		c.Next()
 	}
 }

@@ -3,10 +3,11 @@ package middleware
 import (
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/ibednov/go-lepsios/auth/claims"
 	"github.com/ibednov/go-lepsios/auth/validator"
+	httpmw "github.com/ibednov/go-lepsios/httpx/middleware"
 	"github.com/ibednov/go-lepsios/httpx/response"
-	"github.com/gin-gonic/gin"
 )
 
 // Required authenticates requests via Bearer JWT.
@@ -34,6 +35,7 @@ func Required(v validator.TokenValidator, opts ...Option) gin.HandlerFunc {
 
 		ctx := claims.SetPrincipal(c.Request.Context(), principal)
 		c.Request = c.Request.WithContext(ctx)
+		c.Set(httpmw.CtxKeyUserID, principal.UserID)
 		c.Next()
 	}
 }
