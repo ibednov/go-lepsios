@@ -31,6 +31,7 @@ func ProvideEngine(cfg EngineConfig, bundle *i18n.Bundle, logger zerolog.Logger)
 	r.Use(middleware.Locale(bundle, cfg.LocaleFallback))
 	r.Use(middleware.AccessLog(logger, skip...))
 	r.Use(middleware.CORS(cfg.CORSOrigins))
+	r.Use(middleware.Metrics())
 
 	return r
 }

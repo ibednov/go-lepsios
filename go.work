@@ -18,4 +18,6 @@ use (
 	./rate_limit
 	./redis
 	./telegram
+	./apperr
+	./audit
 )
