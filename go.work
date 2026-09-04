@@ -3,15 +3,19 @@ go 1.25.0
 use (
 	./auth
 	./config
+	./crypto
 	./currency
 	./db
 	./exchange
+	./files
 	./httpx
 	./i18n
 	./identity
 	./job
 	./log
+	./migrate
 	./productmatch
 	./rate_limit
+	./redis
 	./telegram
 )

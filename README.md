@@ -2,20 +2,19 @@
 
 Multi-module Go infrastructure library for Alepsios backend services.
 
-## Modules (Phase 1)
+## Modules
 
 | Module | Import path | Description |
 |--------|-------------|-------------|
 | `log` | `github.com/ibednov/go-lepsios/log` | Structured logging (`zerolog`) |
 | `i18n` | `github.com/ibednov/go-lepsios/i18n` | Localization bundle |
 | `httpx` | `github.com/ibednov/go-lepsios/httpx` | Gin engine, middleware, API responses |
-| `currency` | `github.com/ibednov/go-lepsios/currency` | ISO codes, official rates, BYN-hub converter (incl. CNY) |
+| `currency` | `github.com/ibednov/go-lepsios/currency` | ISO codes, official rates, BYN-hub converter |
 | `exchange` | `github.com/ibednov/go-lepsios/exchange` | Country → FX provider registry (NBRB for BY) |
-
-## Phase 2 plan
-
-Planned extractions (crypto, redis, apperr, GORM db, config blocks, storage, money, exchange):  
-see [../_docs/go-lepsios-phase-2-modules-plan.md](../_docs/go-lepsios-phase-2-modules-plan.md) (monorepo root `_docs/`).
+| `files` | `github.com/ibednov/go-lepsios/files` | File storage adapter (local / S3-MinIO) |
+| `crypto` | `github.com/ibednov/go-lepsios/crypto` | AES-GCM, token hash, backup codes |
+| `redis` | `github.com/ibednov/go-lepsios/redis` | Redis client from small Config |
+| `migrate` | `github.com/ibednov/go-lepsios/migrate` | Pre-migrate `pg_dump` backup via `files.Adapter` |
 
 ## Local development
 
