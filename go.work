@@ -20,4 +20,5 @@ use (
 	./telegram
 	./apperr
 	./audit
+	./keycloak
 )
