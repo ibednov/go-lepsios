@@ -22,7 +22,7 @@ var notoSansTTF []byte
 
 // Slice is one bar in the chart.
 type Slice struct {
-	Label string // full label shown on the chart (emoji + name ok)
+	Label string // category name (Cyrillic ok)
 	Value int64
 	Pct   int64
 }
@@ -71,11 +71,14 @@ func init() {
 }
 
 // HorizontalBars draws a horizontal bar chart as PNG bytes.
-// subtitle is optional (e.g. period "01.09.2026 – 07.09.2026") and is drawn under the title.
-func HorizontalBars(title, subtitle string, slices []Slice) ([]byte, error) {
+// title may contain a newline: first line is the heading, second is the period/subtitle
+// (e.g. "Траты\n01.09.2026 – 07.09.2026") so saved images show the date range.
+func HorizontalBars(title string, slices []Slice) ([]byte, error) {
 	if len(slices) == 0 {
 		return nil, fmt.Errorf("no slices")
 	}
+	heading, subtitle := splitTitle(title)
+
 	const (
 		width     = 920
 		leftPad   = 24
@@ -86,11 +89,10 @@ func HorizontalBars(title, subtitle string, slices []Slice) ([]byte, error) {
 		pctColW   = 64
 	)
 	topPad := 56
-	if strings.TrimSpace(subtitle) != "" {
+	if subtitle != "" {
 		topPad = 78
 	}
 
-	// Label column width from longest truncated label.
 	labelColW := 200
 	for _, s := range slices {
 		w := font.MeasureString(faceLabel, truncate(s.Label, 32)).Ceil()
@@ -111,9 +113,9 @@ func HorizontalBars(title, subtitle string, slices []Slice) ([]byte, error) {
 	bg := color.RGBA{248, 249, 251, 255}
 	draw.Draw(img, img.Bounds(), &image.Uniform{C: bg}, image.Point{}, draw.Src)
 
-	drawText(img, faceTitle, leftPad, 32, title, color.RGBA{32, 32, 32, 255})
-	if s := strings.TrimSpace(subtitle); s != "" {
-		drawText(img, faceSubtitle, leftPad, 54, s, color.RGBA{100, 100, 110, 255})
+	drawText(img, faceTitle, leftPad, 32, heading, color.RGBA{32, 32, 32, 255})
+	if subtitle != "" {
+		drawText(img, faceSubtitle, leftPad, 54, subtitle, color.RGBA{100, 100, 110, 255})
 	}
 
 	var maxV int64
@@ -149,6 +151,14 @@ func HorizontalBars(title, subtitle string, slices []Slice) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+func splitTitle(title string) (heading, subtitle string) {
+	title = strings.TrimSpace(title)
+	if i := strings.IndexByte(title, '\n'); i >= 0 {
+		return strings.TrimSpace(title[:i]), strings.TrimSpace(title[i+1:])
+	}
+	return title, ""
 }
 
 func darker(c color.RGBA) color.RGBA {
