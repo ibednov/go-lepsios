@@ -41,9 +41,10 @@ var palette = []color.RGBA{
 }
 
 var (
-	faceTitle font.Face
-	faceLabel font.Face
-	facePct   font.Face
+	faceTitle    font.Face
+	faceSubtitle font.Face
+	faceLabel    font.Face
+	facePct      font.Face
 )
 
 func init() {
@@ -52,6 +53,10 @@ func init() {
 		panic("chart: parse font: " + err.Error())
 	}
 	faceTitle, err = opentype.NewFace(ft, &opentype.FaceOptions{Size: 22, DPI: 72, Hinting: font.HintingFull})
+	if err != nil {
+		panic(err)
+	}
+	faceSubtitle, err = opentype.NewFace(ft, &opentype.FaceOptions{Size: 15, DPI: 72, Hinting: font.HintingFull})
 	if err != nil {
 		panic(err)
 	}
@@ -66,7 +71,8 @@ func init() {
 }
 
 // HorizontalBars draws a horizontal bar chart as PNG bytes.
-func HorizontalBars(title string, slices []Slice) ([]byte, error) {
+// subtitle is optional (e.g. period "01.09.2026 – 07.09.2026") and is drawn under the title.
+func HorizontalBars(title, subtitle string, slices []Slice) ([]byte, error) {
 	if len(slices) == 0 {
 		return nil, fmt.Errorf("no slices")
 	}
@@ -74,12 +80,15 @@ func HorizontalBars(title string, slices []Slice) ([]byte, error) {
 		width     = 920
 		leftPad   = 24
 		rightPad  = 24
-		topPad    = 56
 		rowH      = 56
 		bottomPad = 28
 		gapLabel  = 16
 		pctColW   = 64
 	)
+	topPad := 56
+	if strings.TrimSpace(subtitle) != "" {
+		topPad = 78
+	}
 
 	// Label column width from longest truncated label.
 	labelColW := 200
@@ -102,7 +111,10 @@ func HorizontalBars(title string, slices []Slice) ([]byte, error) {
 	bg := color.RGBA{248, 249, 251, 255}
 	draw.Draw(img, img.Bounds(), &image.Uniform{C: bg}, image.Point{}, draw.Src)
 
-	drawText(img, faceTitle, leftPad, 36, title, color.RGBA{32, 32, 32, 255})
+	drawText(img, faceTitle, leftPad, 32, title, color.RGBA{32, 32, 32, 255})
+	if s := strings.TrimSpace(subtitle); s != "" {
+		drawText(img, faceSubtitle, leftPad, 54, s, color.RGBA{100, 100, 110, 255})
+	}
 
 	var maxV int64
 	for _, s := range slices {
