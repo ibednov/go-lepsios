@@ -198,6 +198,73 @@ func (m *memRepo) SoftDeleteMessage(_ context.Context, chatID, messageID, delete
 	return nil
 }
 
+func (m *memRepo) FindLatestMessage(_ context.Context, chatID string) (Message, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var latest Message
+	found := false
+	for _, msg := range m.messages {
+		if msg.ChatID != chatID || msg.DeletedAt != nil {
+			continue
+		}
+		if !found || msg.CreatedAt.After(latest.CreatedAt) {
+			latest = msg
+			found = true
+		}
+	}
+	if !found {
+		return Message{}, ErrNotFound
+	}
+	return latest, nil
+}
+
+func (m *memRepo) ListChatsByMember(_ context.Context, f ListChatsByMemberFilter) ([]Chat, int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	ids := make(map[string]struct{})
+	for _, mem := range m.members {
+		if mem.UserID != f.UserID || mem.DeletedAt != nil {
+			continue
+		}
+		ids[mem.ChatID] = struct{}{}
+	}
+	all := make([]Chat, 0)
+	for id := range ids {
+		c, ok := m.chats[id]
+		if !ok || c.DeletedAt != nil {
+			continue
+		}
+		if f.Kind != "" && c.Kind != f.Kind {
+			continue
+		}
+		if f.OnlyWithMessages {
+			has := false
+			for _, msg := range m.messages {
+				if msg.ChatID == id && msg.DeletedAt == nil {
+					has = true
+					break
+				}
+			}
+			if !has {
+				continue
+			}
+		}
+		all = append(all, c)
+	}
+	total := int64(len(all))
+	if f.Offset >= len(all) {
+		return nil, total, nil
+	}
+	end := f.Offset + f.Limit
+	if f.Limit <= 0 {
+		return all, total, nil
+	}
+	if end > len(all) {
+		end = len(all)
+	}
+	return all[f.Offset:end], total, nil
+}
+
 func TestEnsureChatCreateAndIdempotent(t *testing.T) {
 	repo := newMemRepo()
 	svc := NewService(repo)
@@ -320,4 +387,58 @@ func TestNilService(t *testing.T) {
 	var svc *Service
 	_, err := svc.EnsureChat(context.Background(), CreateChatInput{Kind: KindDM, ExternalID: "x"})
 	require.ErrorIs(t, err, ErrInvalidInput)
+}
+
+func TestListChatsByMemberAndLatest(t *testing.T) {
+	repo := newMemRepo()
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	c1, err := svc.EnsureChat(ctx, CreateChatInput{
+		Kind:       KindFriend,
+		ExternalID: "a:b",
+		Members: []AddMemberInput{
+			{UserID: "a", Role: RoleMember},
+			{UserID: "b", Role: RoleMember},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = svc.EnsureChat(ctx, CreateChatInput{
+		Kind:       KindReservation,
+		ExternalID: "res-x",
+		Members:    []AddMemberInput{{UserID: "a", Role: RoleOwner}},
+	})
+	require.NoError(t, err)
+
+	empty, total, err := svc.ListChatsByMember(ctx, ListChatsByMemberFilter{
+		UserID:           "a",
+		Kind:             KindFriend,
+		OnlyWithMessages: true,
+		Limit:            50,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(0), total)
+	require.Empty(t, empty)
+
+	_, err = svc.SendMessage(ctx, SendMessageInput{ChatID: c1.ID, SenderUserID: "a", Body: "hi"})
+	require.NoError(t, err)
+
+	list, total, err := svc.ListChatsByMember(ctx, ListChatsByMemberFilter{
+		UserID:           "a",
+		Kind:             KindFriend,
+		OnlyWithMessages: true,
+		Limit:            50,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Len(t, list, 1)
+	require.Equal(t, c1.ID, list[0].ID)
+
+	latest, err := svc.FindLatestMessage(ctx, c1.ID, "b")
+	require.NoError(t, err)
+	require.Equal(t, "hi", latest.Body)
+
+	_, err = svc.FindLatestMessage(ctx, c1.ID, "outsider")
+	require.ErrorIs(t, err, ErrNotMember)
 }
