@@ -1,4 +1,4 @@
-MODULES := log i18n httpx config db identity auth job rate_limit productmatch currency exchange apperr audit
+MODULES := log i18n httpx config db identity auth job rate_limit productmatch currency exchange apperr audit chat crypto files redis telegram migrate keycloak
 
 .PHONY: lint test tidy sync tools
 

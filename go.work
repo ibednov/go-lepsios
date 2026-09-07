@@ -5,6 +5,7 @@ use (
 	./audit
 	./auth
 	./chart
+	./chat
 	./config
 	./crypto
 	./currency

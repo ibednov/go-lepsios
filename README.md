@@ -17,6 +17,7 @@ Multi-module Go infrastructure library for Alepsios backend services.
 | `migrate` | `github.com/ibednov/go-lepsios/migrate` | Pre-migrate `pg_dump` backup via `files.Adapter` |
 | `apperr` | `github.com/ibednov/go-lepsios/apperr` | Structured app error + HTTP mapper hook |
 | `audit` | `github.com/ibednov/go-lepsios/audit` | Actor-action audit log (`who did what`) |
+| `chat` | `github.com/ibednov/go-lepsios/chat` | Chat rooms, members, soft-deletable messages |
 
 ## Local development
 
