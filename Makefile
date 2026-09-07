@@ -1,4 +1,4 @@
-MODULES := log i18n httpx config db identity auth job rate_limit productmatch currency exchange apperr audit
+MODULES := log i18n httpx config db identity auth job rate_limit productmatch currency exchange apperr audit billing featureflags
 
 .PHONY: lint test tidy sync tools
 

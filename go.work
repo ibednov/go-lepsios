@@ -4,12 +4,14 @@ use (
 	./apperr
 	./audit
 	./auth
+	./billing
 	./chart
 	./config
 	./crypto
 	./currency
 	./db
 	./exchange
+	./featureflags
 	./files
 	./httpx
 	./i18n

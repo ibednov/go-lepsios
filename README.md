@@ -17,6 +17,10 @@ Multi-module Go infrastructure library for Alepsios backend services.
 | `migrate` | `github.com/ibednov/go-lepsios/migrate` | Pre-migrate `pg_dump` backup via `files.Adapter` |
 | `apperr` | `github.com/ibednov/go-lepsios/apperr` | Structured app error + HTTP mapper hook |
 | `audit` | `github.com/ibednov/go-lepsios/audit` | Actor-action audit log (`who did what`) |
+| `billing` | `github.com/ibednov/go-lepsios/billing` | Payment intents, strategies (`admin_confirm`), subscription/purchase/entitlements |
+| `featureflags` | `github.com/ibednov/go-lepsios/featureflags` | Per-subject flag key helpers (normalize/merge) |
+
+Prefix rule: SaaS billing lives under `billing/*`. Future goods shop → `commerce/*` (never a bare `catalog`).
 
 ## Local development
 
@@ -35,6 +39,8 @@ replace github.com/ibednov/go-lepsios/log => ../go-lepsios/log
 ```
 
 Or add both repos to a shared `go.work`.
+
+New modules without published tags need a temporary `replace` (or tag `billing/v0.1.0` / `featureflags/v0.1.0` and drop replace).
 
 ## Versioning
 
