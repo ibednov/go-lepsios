@@ -17,6 +17,9 @@ type Repository interface {
 
 	CreateMessage(ctx context.Context, m Message) (Message, error)
 	FindMessage(ctx context.Context, chatID, messageID string) (Message, error)
+	FindLatestMessage(ctx context.Context, chatID string) (Message, error)
 	ListMessages(ctx context.Context, f ListMessagesFilter) ([]Message, int64, error)
 	SoftDeleteMessage(ctx context.Context, chatID, messageID, deletedBy string) error
+
+	ListChatsByMember(ctx context.Context, f ListChatsByMemberFilter) ([]Chat, int64, error)
 }

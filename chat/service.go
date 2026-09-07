@@ -264,6 +264,54 @@ func (s *Service) ListMessages(ctx context.Context, actorID string, f ListMessag
 	return s.repo.ListMessages(ctx, f)
 }
 
+// ListChatsByMember returns non-deleted rooms where userID is an active member.
+func (s *Service) ListChatsByMember(ctx context.Context, f ListChatsByMemberFilter) ([]Chat, int64, error) {
+	if s == nil || s.repo == nil {
+		return nil, 0, ErrInvalidInput
+	}
+	userID := strings.TrimSpace(f.UserID)
+	if userID == "" {
+		return nil, 0, ErrInvalidInput
+	}
+	if f.Limit <= 0 {
+		f.Limit = 50
+	}
+	if f.Limit > 200 {
+		f.Limit = 200
+	}
+	if f.Offset < 0 {
+		f.Offset = 0
+	}
+	f.UserID = userID
+	if kind := strings.TrimSpace(string(f.Kind)); kind != "" {
+		f.Kind = Kind(kind)
+	}
+	return s.repo.ListChatsByMember(ctx, f)
+}
+
+// FindLatestMessage returns the newest non-deleted message. Actor must be a member.
+func (s *Service) FindLatestMessage(ctx context.Context, chatID, actorID string) (Message, error) {
+	if s == nil || s.repo == nil {
+		return Message{}, ErrInvalidInput
+	}
+	chatID = strings.TrimSpace(chatID)
+	actorID = strings.TrimSpace(actorID)
+	if chatID == "" || actorID == "" {
+		return Message{}, ErrInvalidInput
+	}
+	if _, err := s.requireChat(ctx, chatID); err != nil {
+		return Message{}, err
+	}
+	ok, err := s.repo.IsMember(ctx, chatID, actorID)
+	if err != nil {
+		return Message{}, err
+	}
+	if !ok {
+		return Message{}, ErrNotMember
+	}
+	return s.repo.FindLatestMessage(ctx, chatID)
+}
+
 func (s *Service) requireChat(ctx context.Context, chatID string) (Chat, error) {
 	c, err := s.repo.FindChatByID(ctx, chatID)
 	if err != nil {
