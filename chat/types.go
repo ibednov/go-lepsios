@@ -9,7 +9,17 @@ type Kind string
 const (
 	KindReservation Kind = "reservation"
 	KindDM          Kind = "dm"
+	KindFriend      Kind = "friend"
 )
+
+// ListChatsByMemberFilter pages chats where a user is an active member.
+type ListChatsByMemberFilter struct {
+	UserID           string
+	Kind             Kind // empty = any kind
+	Limit            int
+	Offset           int
+	OnlyWithMessages bool
+}
 
 // Role is a member's role inside a chat room.
 type Role string
