@@ -23,4 +23,5 @@ use (
 	./rate_limit
 	./redis
 	./telegram
+	./ws
 )
