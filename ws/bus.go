@@ -32,10 +32,12 @@ func (b *Bus) PublishUser(ctx context.Context, userID string, envelope []byte) e
 	if b == nil || userID == "" || len(envelope) == 0 {
 		return nil
 	}
+	// Always fan-out on this instance first so open chats work even if Redis
+	// pubsub is down or the local subscriber is not ready yet.
+	if b.hub != nil {
+		b.hub.Deliver(userID, envelope)
+	}
 	if b.rdb == nil {
-		if b.hub != nil {
-			b.hub.Deliver(userID, envelope)
-		}
 		return nil
 	}
 	if err := b.rdb.Publish(ctx, b.UserChannel(userID), envelope).Err(); err != nil {

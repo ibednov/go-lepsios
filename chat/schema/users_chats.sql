@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS users_chats_members (
     user_id uuid NOT NULL,
     role text NOT NULL DEFAULT 'member',
     joined_at timestamptz NOT NULL DEFAULT now(),
+    last_read_at timestamptz,
     deleted_at timestamptz,
     PRIMARY KEY (chat_id, user_id)
 );
