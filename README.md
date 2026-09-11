@@ -10,7 +10,9 @@ Multi-module Go infrastructure library for Alepsios backend services.
 | `i18n` | `github.com/ibednov/go-lepsios/i18n` | Localization bundle |
 | `httpx` | `github.com/ibednov/go-lepsios/httpx` | Gin engine, middleware, API responses |
 | `currency` | `github.com/ibednov/go-lepsios/currency` | ISO codes, official rates, BYN-hub converter |
-| `exchange` | `github.com/ibednov/go-lepsios/exchange` | Country → FX provider registry (NBRB for BY) |
+| `exchange` | `github.com/ibednov/go-lepsios/exchange` | Country → FX provider registry (NBRB for BY) + day cache |
+| `money` | `github.com/ibednov/go-lepsios/money` | Parse/format amounts in integer cents |
+| `dates` | `github.com/ibednov/go-lepsios/dates` | DD.MM.YYYY parse + named period bounds |
 | `files` | `github.com/ibednov/go-lepsios/files` | File storage adapter (local / S3-MinIO) |
 | `crypto` | `github.com/ibednov/go-lepsios/crypto` | AES-GCM, token hash, backup codes |
 | `redis` | `github.com/ibednov/go-lepsios/redis` | Redis client from small Config |

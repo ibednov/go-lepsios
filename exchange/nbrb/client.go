@@ -27,9 +27,22 @@ func NewClient(baseURL string, httpClient *http.Client) *Client {
 	}
 }
 
+// FetchAllRates fetches today's (or latest published) daily rates.
 func (c *Client) FetchAllRates(ctx context.Context) ([]rateDTO, error) {
+	return c.fetch(ctx, "")
+}
+
+// FetchRatesOnDate fetches official rates for ondate (YYYY-MM-DD).
+func (c *Client) FetchRatesOnDate(ctx context.Context, ondate time.Time) ([]rateDTO, error) {
+	return c.fetch(ctx, ondate.Format("2006-01-02"))
+}
+
+func (c *Client) fetch(ctx context.Context, ondate string) ([]rateDTO, error) {
 	start := time.Now()
 	reqURL := fmt.Sprintf("%s/rates?periodicity=0&parammode=2", c.baseURL)
+	if ondate != "" {
+		reqURL = fmt.Sprintf("%s/rates?ondate=%s&periodicity=0&parammode=2", c.baseURL, ondate)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {

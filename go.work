@@ -9,6 +9,7 @@ use (
 	./config
 	./crypto
 	./currency
+	./dates
 	./db
 	./exchange
 	./files
@@ -19,6 +20,7 @@ use (
 	./keycloak
 	./log
 	./migrate
+	./money
 	./productmatch
 	./rate_limit
 	./redis
