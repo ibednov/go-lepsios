@@ -4,6 +4,7 @@ use (
 	./apperr
 	./audit
 	./auth
+	./billing
 	./chart
 	./chat
 	./config
@@ -12,6 +13,7 @@ use (
 	./dates
 	./db
 	./exchange
+	./featureflags
 	./files
 	./httpx
 	./i18n
