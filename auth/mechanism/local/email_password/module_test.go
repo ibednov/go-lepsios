@@ -39,9 +39,9 @@ func TestLoginJSON(t *testing.T) {
 		provider.LocalEmailPassword,
 		mgr,
 		refresh,
-		func(_ context.Context, email, password string) (emailpassword.VerifiedUser, error) {
-			if email == "a@b.c" && password == "password1" {
-				return emailpassword.VerifiedUser{UserID: "u1", Email: email}, nil
+		func(_ context.Context, req emailpassword.LoginRequest) (emailpassword.VerifiedUser, error) {
+			if req.Email == "a@b.c" && req.Password == "password1" {
+				return emailpassword.VerifiedUser{UserID: "u1", Email: req.Email}, nil
 			}
 			return emailpassword.VerifiedUser{}, context.Canceled
 		},

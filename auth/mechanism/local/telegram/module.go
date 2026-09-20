@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -17,8 +18,9 @@ import (
 
 // SessionResult is returned by Store.Session.
 type SessionResult struct {
-	NeedsLink bool
-	Verified  *emailpassword.VerifiedUser
+	NeedsLink              bool
+	LoginChallengeApproved bool
+	Verified               *emailpassword.VerifiedUser
 }
 
 // Store delegates Telegram auth business logic to the service.
@@ -28,6 +30,7 @@ type Store interface {
 	CreateChallenge(ctx context.Context, c *gin.Context) (any, error)
 	GetChallenge(ctx context.Context, c *gin.Context) (any, error)
 	ApproveChallenge(ctx context.Context, c *gin.Context) (SessionResult, error)
+	ExchangeChallengeSession(ctx context.Context, c *gin.Context) (emailpassword.VerifiedUser, error)
 }
 
 type options struct {
@@ -96,6 +99,7 @@ func (m *Module) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/challenges/approve", m.approveChallenge) // body.code — для бота
 	rg.GET("/challenges/:id", m.getChallenge)
 	rg.POST("/challenges/:id/approve", m.approveChallenge)
+	rg.POST("/challenges/session", m.exchangeChallengeSession)
 }
 
 func (m *Module) session(c *gin.Context) {
@@ -149,11 +153,28 @@ func (m *Module) approveChallenge(c *gin.Context) {
 		response.Unauthorized(c, "TELEGRAM_CHALLENGE_APPROVE_FAILED", err.Error())
 		return
 	}
+	if result.LoginChallengeApproved {
+		response.OK(c, gin.H{"status": "approved"})
+		return
+	}
 	if result.NeedsLink || result.Verified == nil {
 		response.OK(c, gin.H{"status": "needs_link"})
 		return
 	}
 	m.respondWithTokens(c, http.StatusOK, *result.Verified)
+}
+
+func (m *Module) exchangeChallengeSession(c *gin.Context) {
+	verified, err := m.store.ExchangeChallengeSession(c.Request.Context(), c)
+	if err != nil {
+		if strings.Contains(err.Error(), "already consumed") {
+			response.Conflict(c, "TELEGRAM_CHALLENGE_CONSUMED", err.Error())
+			return
+		}
+		response.Unauthorized(c, "TELEGRAM_CHALLENGE_SESSION_FAILED", err.Error())
+		return
+	}
+	m.respondWithTokensRefreshCookie(c, http.StatusOK, verified)
 }
 
 func (m *Module) userIDFromBearer(c *gin.Context) (string, error) {
@@ -207,6 +228,30 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified emailpas
 		data["refresh_token"] = pair.RefreshToken
 	}
 
+	c.JSON(status, response.SuccessBody{Data: data})
+}
+
+
+func (m *Module) respondWithTokensRefreshCookie(c *gin.Context, status int, verified emailpassword.VerifiedUser) {
+	providerID := verified.Provider
+	if providerID == "" {
+		providerID = m.providerID
+	}
+	accessClaims := claims.AccessClaims{
+		UserID: verified.UserID, Provider: providerID, Kind: verified.Kind,
+		Email: verified.Email, Roles: verified.Roles, Plan: verified.Plan, Features: verified.Features,
+	}
+	pair, err := m.refresh.Issue(c.Request.Context(), accessClaims)
+	if err != nil {
+		response.Internal(c, "failed to issue tokens")
+		return
+	}
+	data := gin.H{"access_token": pair.AccessToken, "expires_in": pair.ExpiresIn,
+		"user": gin.H{"id": verified.UserID, "email": verified.Email}}
+	if verified.User != nil {
+		data["user"] = verified.User
+	}
+	setRefreshCookie(c, pair.RefreshToken, m.tokens.RefreshTTL())
 	c.JSON(status, response.SuccessBody{Data: data})
 }
 

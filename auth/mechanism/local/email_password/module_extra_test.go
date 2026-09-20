@@ -53,7 +53,7 @@ func TestLoginCookieRefresh(t *testing.T) {
 		provider.LocalEmailPassword,
 		mgr,
 		refresh,
-		func(_ context.Context, _, _ string) (emailpassword.VerifiedUser, error) {
+		func(_ context.Context, _ emailpassword.LoginRequest) (emailpassword.VerifiedUser, error) {
 			return emailpassword.VerifiedUser{UserID: "u1"}, nil
 		},
 		nil,

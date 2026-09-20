@@ -7,6 +7,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/ibednov/go-lepsios/httpx v0.0.0
 	github.com/ibednov/go-lepsios/identity v0.0.0
+	github.com/nyaruka/phonenumbers v1.8.1
 	github.com/stretchr/testify v1.11.1
 )
 

@@ -5,13 +5,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/ibednov/go-lepsios/auth/claims"
 	"github.com/ibednov/go-lepsios/auth/provider"
 	"github.com/ibednov/go-lepsios/auth/session"
 	"github.com/ibednov/go-lepsios/auth/token"
 	"github.com/ibednov/go-lepsios/httpx/response"
 	"github.com/ibednov/go-lepsios/identity"
-	"github.com/gin-gonic/gin"
 )
 
 // VerifiedUser is returned by credential verification callbacks.
@@ -26,15 +26,16 @@ type VerifiedUser struct {
 	User     any // optional service-specific user DTO in responses
 }
 
-// CredentialVerifier validates email/password credentials.
-type CredentialVerifier func(ctx context.Context, email, password string) (VerifiedUser, error)
+// CredentialVerifier validates credentials (phone-first or email).
+type CredentialVerifier func(ctx context.Context, req LoginRequest) (VerifiedUser, error)
 
 // Registrar handles register requests (service binds its own DTO).
 type Registrar func(ctx context.Context, c *gin.Context) (VerifiedUser, error)
 
-// LoginRequest is the fixed login DTO.
+// LoginRequest is the fixed login DTO (phone and/or email).
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
+	Email    string `json:"email"`
+	Phone    string `json:"phone"`
 	Password string `json:"password" binding:"required,min=8"`
 }
 
@@ -101,10 +102,14 @@ func (m *Module) login(c *gin.Context) {
 		response.BadRequest(c, "VALIDATION_ERROR", err.Error())
 		return
 	}
+	if err := req.Validate(); err != nil {
+		response.BadRequest(c, "VALIDATION_ERROR", err.Error())
+		return
+	}
 
-	verified, err := m.verify(c.Request.Context(), req.Email, req.Password)
+	verified, err := m.verify(c.Request.Context(), req)
 	if err != nil {
-		response.Unauthorized(c, "INVALID_CREDENTIALS", "Invalid email or password")
+		response.Unauthorized(c, "INVALID_CREDENTIALS", "Invalid credentials")
 		return
 	}
 
