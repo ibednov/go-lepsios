@@ -68,6 +68,12 @@ func BackupBeforeMigrate(ctx context.Context, in BackupInput) error {
 		Path:   objectPath,
 		Reader: pr,
 	})
+	if createErr != nil {
+		// Stop pg_dump if the uploader returned before consuming the stream.
+		// Otherwise the producer can block forever writing to the pipe while
+		// this goroutine waits for errCh below.
+		_ = pr.CloseWithError(createErr)
+	}
 	dumpErr := <-errCh
 
 	if createErr != nil {
