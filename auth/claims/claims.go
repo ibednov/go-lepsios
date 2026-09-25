@@ -9,6 +9,9 @@ import (
 // AccessClaims are signed into JWT access tokens.
 type AccessClaims struct {
 	UserID   string             `json:"user_id"`
+	// SessionID binds an access token to the refresh session that issued it.
+	// Services can reject the access token immediately when that session is revoked.
+	SessionID string             `json:"sid,omitempty"`
 	Provider provider.ID        `json:"provider,omitempty"`
 	Kind     identity.ActorKind `json:"kind,omitempty"`
 	Email    string             `json:"email,omitempty"`

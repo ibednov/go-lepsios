@@ -42,11 +42,6 @@ func (s *RefreshService) Issue(ctx context.Context, access claims.AccessClaims) 
 		return TokenPair{}, errors.New("session: refresh service not configured")
 	}
 
-	accessToken, err := s.tokens.SignAccess(ctx, access)
-	if err != nil {
-		return TokenPair{}, err
-	}
-
 	refreshToken, err := GenerateRefreshToken()
 	if err != nil {
 		return TokenPair{}, err
@@ -55,6 +50,12 @@ func (s *RefreshService) Issue(ctx context.Context, access claims.AccessClaims) 
 	tokenHash := s.hash(refreshToken)
 	expiresAt := time.Now().Add(s.tokens.RefreshTTL())
 	if err := s.store.SaveRefresh(ctx, tokenHash, access.UserID, expiresAt); err != nil {
+		return TokenPair{}, err
+	}
+	access.SessionID = tokenHash
+	accessToken, err := s.tokens.SignAccess(ctx, access)
+	if err != nil {
+		_ = s.store.RevokeRefresh(ctx, tokenHash)
 		return TokenPair{}, err
 	}
 
