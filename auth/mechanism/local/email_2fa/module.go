@@ -2,16 +2,18 @@ package email2fa
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
-	emailpassword "github.com/ibednov/go-lepsios/auth/mechanism/local/email_password"
+	"github.com/gin-gonic/gin"
 	"github.com/ibednov/go-lepsios/auth/claims"
+	emailpassword "github.com/ibednov/go-lepsios/auth/mechanism/local/email_password"
 	"github.com/ibednov/go-lepsios/auth/provider"
 	"github.com/ibednov/go-lepsios/auth/session"
 	"github.com/ibednov/go-lepsios/auth/token"
 	"github.com/ibednov/go-lepsios/httpx/response"
-	"github.com/gin-gonic/gin"
+	"github.com/ibednov/go-lepsios/i18n"
 )
 
 // TwoFAStore delegates 2FA business logic to the service.
@@ -80,7 +82,7 @@ func (m *Module) RegisterRoutes(rg *gin.RouterGroup) {
 func (m *Module) check(c *gin.Context) {
 	result, err := m.store.Check(c.Request.Context(), c)
 	if err != nil {
-		response.BadRequest(c, "CHECK_FAILED", err.Error())
+		response.BadRequest(c, "CHECK_FAILED", localizedErrorMessage(c, err))
 		return
 	}
 	response.OK(c, result)
@@ -89,7 +91,7 @@ func (m *Module) check(c *gin.Context) {
 func (m *Module) generate(c *gin.Context) {
 	result, err := m.store.Generate(c.Request.Context(), c)
 	if err != nil {
-		response.BadRequest(c, "GENERATE_FAILED", err.Error())
+		response.BadRequest(c, "GENERATE_FAILED", localizedErrorMessage(c, err))
 		return
 	}
 	response.OK(c, result)
@@ -98,10 +100,24 @@ func (m *Module) generate(c *gin.Context) {
 func (m *Module) verify(c *gin.Context) {
 	verified, err := m.store.Verify(c.Request.Context(), c)
 	if err != nil {
-		response.Unauthorized(c, "VERIFY_FAILED", err.Error())
+		response.Unauthorized(c, "VERIFY_FAILED", localizedErrorMessage(c, err))
 		return
 	}
 	m.respondWithTokens(c, http.StatusOK, verified)
+}
+
+func localizedErrorMessage(c *gin.Context, err error) string {
+	var keyedError interface{ GetMessageKey() string }
+	if errors.As(err, &keyedError) {
+		key := keyedError.GetMessageKey()
+		if key != "" && c != nil && c.Request != nil {
+			localized := i18n.LocalizerFromContext(c.Request.Context()).T(key)
+			if localized != "" && localized != key {
+				return localized
+			}
+		}
+	}
+	return err.Error()
 }
 
 func (m *Module) respondWithTokens(c *gin.Context, status int, verified emailpassword.VerifiedUser) {
