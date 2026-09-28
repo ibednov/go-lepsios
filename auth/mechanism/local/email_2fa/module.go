@@ -16,6 +16,13 @@ import (
 	"github.com/ibednov/go-lepsios/i18n"
 )
 
+const (
+	checkFailedCode      = "error.auth.2fa.check_failed"
+	generateFailedCode   = "error.auth.2fa.generate_failed"
+	verifyFailedCode     = "error.auth.2fa.verify_failed"
+	tokenIssueFailedCode = "error.auth.2fa.token_issue_failed"
+)
+
 // TwoFAStore delegates 2FA business logic to the service.
 type TwoFAStore interface {
 	Check(ctx context.Context, c *gin.Context) (any, error)
@@ -82,7 +89,7 @@ func (m *Module) RegisterRoutes(rg *gin.RouterGroup) {
 func (m *Module) check(c *gin.Context) {
 	result, err := m.store.Check(c.Request.Context(), c)
 	if err != nil {
-		response.BadRequest(c, "CHECK_FAILED", localizedErrorMessage(c, err))
+		response.BadRequest(c, checkFailedCode, localizedErrorMessage(c, err, checkFailedCode, "Unable to check 2FA."))
 		return
 	}
 	response.OK(c, result)
@@ -91,7 +98,7 @@ func (m *Module) check(c *gin.Context) {
 func (m *Module) generate(c *gin.Context) {
 	result, err := m.store.Generate(c.Request.Context(), c)
 	if err != nil {
-		response.BadRequest(c, "GENERATE_FAILED", localizedErrorMessage(c, err))
+		response.BadRequest(c, generateFailedCode, localizedErrorMessage(c, err, generateFailedCode, "Unable to generate a 2FA code."))
 		return
 	}
 	response.OK(c, result)
@@ -100,24 +107,33 @@ func (m *Module) generate(c *gin.Context) {
 func (m *Module) verify(c *gin.Context) {
 	verified, err := m.store.Verify(c.Request.Context(), c)
 	if err != nil {
-		response.Unauthorized(c, "VERIFY_FAILED", localizedErrorMessage(c, err))
+		response.Unauthorized(c, verifyFailedCode, localizedErrorMessage(c, err, verifyFailedCode, "Unable to verify the 2FA code."))
 		return
 	}
 	m.respondWithTokens(c, http.StatusOK, verified)
 }
 
-func localizedErrorMessage(c *gin.Context, err error) string {
+func localizedErrorMessage(c *gin.Context, err error, fallbackKey, fallbackMessage string) string {
+	var localizer *i18n.Localizer
+	if c != nil && c.Request != nil {
+		localizer = i18n.LocalizerFromContext(c.Request.Context())
+	}
+
 	var keyedError interface{ GetMessageKey() string }
-	if errors.As(err, &keyedError) {
+	if err != nil && errors.As(err, &keyedError) && keyedError.GetMessageKey() != "" && localizer != nil {
 		key := keyedError.GetMessageKey()
-		if key != "" && c != nil && c.Request != nil {
-			localized := i18n.LocalizerFromContext(c.Request.Context()).T(key)
-			if localized != "" && localized != key {
-				return localized
-			}
+		localized := localizer.T(key)
+		if localized != "" && localized != key {
+			return localized
 		}
 	}
-	return err.Error()
+	if localizer != nil {
+		localized := localizer.T(fallbackKey)
+		if localized != "" && localized != fallbackKey {
+			return localized
+		}
+	}
+	return fallbackMessage
 }
 
 func (m *Module) respondWithTokens(c *gin.Context, status int, verified emailpassword.VerifiedUser) {
@@ -138,7 +154,7 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified emailpas
 
 	pair, err := m.refresh.Issue(c.Request.Context(), accessClaims)
 	if err != nil {
-		response.Internal(c, "failed to issue tokens")
+		response.Error(c, http.StatusInternalServerError, tokenIssueFailedCode, localizedErrorMessage(c, nil, tokenIssueFailedCode, "Unable to start a session after 2FA verification."))
 		return
 	}
 
