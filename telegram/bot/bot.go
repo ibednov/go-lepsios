@@ -20,7 +20,19 @@ type Bot interface {
 type Sender interface {
 	SendText(ctx context.Context, chatID int64, text string) error
 	SendTextWithKeyboard(ctx context.Context, chatID int64, text string, keyboard *models.InlineKeyboardMarkup) error
+	// SendTextWithKeyboardID is SendTextWithKeyboard plus the new message id.
+	SendTextWithKeyboardID(ctx context.Context, chatID int64, text string, keyboard *models.InlineKeyboardMarkup) (int, error)
+	// EditText replaces text and the inline keyboard of a message this bot sent.
+	// A nil keyboard clears the buttons. Same text and keyboard returns ErrNotModified.
+	EditText(ctx context.Context, chatID int64, messageID int, text string, keyboard *models.InlineKeyboardMarkup) error
 }
+
+// ErrNotModified is returned when edit would not change the message.
+var ErrNotModified = errNotModified("message is not modified")
+
+type errNotModified string
+
+func (e errNotModified) Error() string { return string(e) }
 
 type Config struct {
 	Token              string
@@ -75,15 +87,16 @@ func (a *adapter) SendText(ctx context.Context, chatID int64, text string) error
 }
 
 func (a *adapter) SendTextWithKeyboard(ctx context.Context, chatID int64, text string, keyboard *models.InlineKeyboardMarkup) error {
-	params := &bot.SendMessageParams{
-		ChatID: chatID,
-		Text:   text,
-	}
-	if keyboard != nil {
-		params.ReplyMarkup = keyboard
-	}
-	_, err := a.b.SendMessage(ctx, params)
+	_, err := a.SendTextWithKeyboardID(ctx, chatID, text, keyboard)
 	return err
+}
+
+func (a *adapter) SendTextWithKeyboardID(ctx context.Context, chatID int64, text string, keyboard *models.InlineKeyboardMarkup) (int, error) {
+	return sendKeyboard(ctx, a.b, chatID, text, keyboard)
+}
+
+func (a *adapter) EditText(ctx context.Context, chatID int64, messageID int, text string, keyboard *models.InlineKeyboardMarkup) error {
+	return editText(ctx, a.b, chatID, messageID, text, keyboard)
 }
 
 func (a *adapter) AnswerCallback(ctx context.Context, callbackID, text string) error {

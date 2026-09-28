@@ -30,13 +30,14 @@ func (a *senderAdapter) SendText(ctx context.Context, chatID int64, text string)
 }
 
 func (a *senderAdapter) SendTextWithKeyboard(ctx context.Context, chatID int64, text string, keyboard *models.InlineKeyboardMarkup) error {
-	params := &bot.SendMessageParams{
-		ChatID: chatID,
-		Text:   text,
-	}
-	if keyboard != nil {
-		params.ReplyMarkup = keyboard
-	}
-	_, err := a.b.SendMessage(ctx, params)
+	_, err := a.SendTextWithKeyboardID(ctx, chatID, text, keyboard)
 	return err
+}
+
+func (a *senderAdapter) SendTextWithKeyboardID(ctx context.Context, chatID int64, text string, keyboard *models.InlineKeyboardMarkup) (int, error) {
+	return sendKeyboard(ctx, a.b, chatID, text, keyboard)
+}
+
+func (a *senderAdapter) EditText(ctx context.Context, chatID int64, messageID int, text string, keyboard *models.InlineKeyboardMarkup) error {
+	return editText(ctx, a.b, chatID, messageID, text, keyboard)
 }

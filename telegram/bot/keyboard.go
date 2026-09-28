@@ -20,3 +20,25 @@ func Markup(rows ...[]tgmodels.InlineKeyboardButton) *tgmodels.InlineKeyboardMar
 func Row(buttons ...tgmodels.InlineKeyboardButton) []tgmodels.InlineKeyboardButton {
 	return buttons
 }
+
+// Grid lays buttons in cols columns and appends footer rows as-is.
+// cols < 1 is treated as 1.
+func Grid(cols int, buttons []tgmodels.InlineKeyboardButton, footer ...[]tgmodels.InlineKeyboardButton) *tgmodels.InlineKeyboardMarkup {
+	if cols < 1 {
+		cols = 1
+	}
+	rows := make([][]tgmodels.InlineKeyboardButton, 0, len(buttons)/cols+len(footer))
+	var row []tgmodels.InlineKeyboardButton
+	for _, button := range buttons {
+		row = append(row, button)
+		if len(row) == cols {
+			rows = append(rows, row)
+			row = nil
+		}
+	}
+	if len(row) > 0 {
+		rows = append(rows, row)
+	}
+	rows = append(rows, footer...)
+	return Markup(rows...)
+}
