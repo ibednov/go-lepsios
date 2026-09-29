@@ -19,3 +19,4 @@ Future commerce goods → separate `commerce/*` modules, never a bare `catalog`.
 
 - No ORM tags — products map to their own storage.
 - Product feature keys (e.g. Wishimi `price_monitor_gap_hours`) stay in the product.
+- `PaymentIntent.AmountMinor` and `AssignSubscriptionInput.AmountMinor` are integer minor units (e.g. 1,250 means 12.50 in a two-decimal currency). Do not convert money to `float64` in consumers.

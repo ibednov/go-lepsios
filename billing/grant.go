@@ -14,13 +14,14 @@ type SubscriptionAssigner interface {
 
 // AssignSubscriptionInput is admin/system grant of a subscription plan.
 type AssignSubscriptionInput struct {
-	SubjectID  string
-	PlanSlug   string
-	Amount     float64
-	Currency   currency.Code // empty → NewPaymentIntent default (BYN)
-	AssignedBy *string
-	ExpiresAt  *time.Time
-	Strategy   Strategy // nil → AdminConfirm
+	SubjectID string
+	PlanSlug  string
+	// AmountMinor is expressed in the currency's minor units.
+	AmountMinor int64
+	Currency    currency.Code // empty → NewPaymentIntent default (BYN)
+	AssignedBy  *string
+	ExpiresAt   *time.Time
+	Strategy    Strategy // nil → AdminConfirm
 }
 
 // AssignSubscription confirms payment via strategy then assigns the plan.
@@ -33,7 +34,7 @@ func AssignSubscription(ctx context.Context, assigner SubscriptionAssigner, in A
 	if strategy == nil {
 		strategy = AdminConfirm{}
 	}
-	intent := NewPaymentIntent(in.SubjectID, ProductKindSubscription, in.PlanSlug, in.Amount, in.Currency)
+	intent := NewPaymentIntent(in.SubjectID, ProductKindSubscription, in.PlanSlug, in.AmountMinor, in.Currency)
 	intent.ConfirmedBy = in.AssignedBy
 	if err := strategy.Confirm(ctx, &intent); err != nil {
 		return &intent, err

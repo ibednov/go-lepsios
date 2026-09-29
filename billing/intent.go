@@ -44,7 +44,10 @@ type PaymentIntent struct {
 	SubjectID   string
 	ProductKind ProductKind
 	ProductRef  string // plan slug / one-time product slug / id
-	Amount      float64
+	// AmountMinor is the payment amount in the currency's minor units
+	// (for example, kopecks/cents). It is the canonical amount used by
+	// strategies and persistence adapters; never use floating point for money.
+	AmountMinor int64
 	Currency    currency.Code
 	Status      IntentStatus
 	Strategy    string // strategy name that confirmed/failed this intent
@@ -55,7 +58,7 @@ type PaymentIntent struct {
 }
 
 // NewPaymentIntent builds a created intent with defaults.
-func NewPaymentIntent(subjectID string, kind ProductKind, productRef string, amount float64, cur currency.Code) PaymentIntent {
+func NewPaymentIntent(subjectID string, kind ProductKind, productRef string, amountMinor int64, cur currency.Code) PaymentIntent {
 	now := time.Now().UTC()
 	if cur == "" {
 		cur = currency.BYN
@@ -64,7 +67,7 @@ func NewPaymentIntent(subjectID string, kind ProductKind, productRef string, amo
 		SubjectID:   subjectID,
 		ProductKind: kind,
 		ProductRef:  productRef,
-		Amount:      amount,
+		AmountMinor: amountMinor,
 		Currency:    cur,
 		Status:      IntentCreated,
 		CreatedAt:   now,

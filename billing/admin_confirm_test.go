@@ -12,7 +12,8 @@ import (
 
 func TestAdminConfirm(t *testing.T) {
 	t.Parallel()
-	intent := billing.NewPaymentIntent("u1", billing.ProductKindSubscription, "premium", 9.9, currency.BYN)
+	intent := billing.NewPaymentIntent("u1", billing.ProductKindSubscription, "premium", 990, currency.BYN)
+	require.EqualValues(t, 990, intent.AmountMinor)
 	require.Equal(t, billing.IntentCreated, intent.Status)
 
 	err := billing.AdminConfirm{}.Confirm(context.Background(), &intent)
@@ -26,7 +27,7 @@ func TestAdminConfirm(t *testing.T) {
 
 func TestAdminConfirmRejectsTerminal(t *testing.T) {
 	t.Parallel()
-	intent := billing.NewPaymentIntent("u1", billing.ProductKindOneTime, "pack", 1, currency.BYN)
+	intent := billing.NewPaymentIntent("u1", billing.ProductKindOneTime, "pack", 100, currency.BYN)
 	intent.Status = billing.IntentFailed
 	require.ErrorIs(t, billing.AdminConfirm{}.Confirm(context.Background(), &intent), billing.ErrInvalidIntentState)
 }
@@ -47,14 +48,15 @@ func TestAssignSubscription(t *testing.T) {
 	a := &stubAssigner{}
 	by := "admin1"
 	intent, err := billing.AssignSubscription(context.Background(), a, billing.AssignSubscriptionInput{
-		SubjectID:  "u1",
-		PlanSlug:   "standard",
-		Amount:     4.9,
-		AssignedBy: &by,
+		SubjectID:   "u1",
+		PlanSlug:    "standard",
+		AmountMinor: 490,
+		AssignedBy:  &by,
 	})
 	require.NoError(t, err)
 	require.True(t, a.called)
 	require.Equal(t, "standard", a.slug)
 	require.Equal(t, billing.IntentConfirmed, intent.Status)
 	require.Equal(t, billing.ProductKindSubscription, intent.ProductKind)
+	require.EqualValues(t, 490, intent.AmountMinor)
 }
