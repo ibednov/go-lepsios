@@ -23,6 +23,7 @@ use (
 	./log
 	./migrate
 	./money
+./ocr-receipts
 	./productmatch
 	./rate_limit
 	./redis
