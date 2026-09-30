@@ -7,11 +7,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/ibednov/go-lepsios/auth/claims"
+	"github.com/ibednov/go-lepsios/auth/password"
 	"github.com/ibednov/go-lepsios/auth/provider"
 	"github.com/ibednov/go-lepsios/auth/session"
 	"github.com/ibednov/go-lepsios/auth/token"
 	"github.com/ibednov/go-lepsios/httpx/response"
 	"github.com/ibednov/go-lepsios/identity"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // VerifiedUser is returned by credential verification callbacks.
@@ -37,6 +39,20 @@ type LoginRequest struct {
 	Email    string `json:"email"`
 	Phone    string `json:"phone"`
 	Password string `json:"password" binding:"required,min=8"`
+}
+
+// HashPassword stores a login password using the shared bcrypt policy.
+func HashPassword(raw string) (string, error) {
+	if err := password.Validate(raw); err != nil {
+		return "", err
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(raw), bcrypt.DefaultCost)
+	return string(hash), err
+}
+
+// VerifyPassword checks a stored password hash without exposing hash details.
+func VerifyPassword(hash, raw string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(raw))
 }
 
 type options struct {
