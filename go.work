@@ -21,6 +21,7 @@ use (
 	./job
 	./keycloak
 	./log
+	./mailer
 	./migrate
 	./money
 ./ocr-receipts
