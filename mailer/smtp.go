@@ -4,11 +4,13 @@ package mailer
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
 	"net/mail"
 	"net/smtp"
+	"os"
 	"strings"
 	"time"
 )
@@ -19,10 +21,14 @@ type Sender interface {
 }
 type Config struct {
 	Address, Username, Password, From string
+	RootCAFile                        string
 	ImplicitTLS                       bool
 	Timeout                           time.Duration
 }
-type SMTP struct{ cfg Config }
+type SMTP struct {
+	cfg     Config
+	rootCAs *x509.CertPool
+}
 
 func NewSMTP(cfg Config) (*SMTP, error) {
 	if cfg.Address == "" || cfg.From == "" {
@@ -37,7 +43,21 @@ func NewSMTP(cfg Config) (*SMTP, error) {
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 10 * time.Second
 	}
-	return &SMTP{cfg: cfg}, nil
+	var roots *x509.CertPool
+	if cfg.RootCAFile != "" {
+		pem, err := os.ReadFile(cfg.RootCAFile)
+		if err != nil {
+			return nil, fmt.Errorf("mailer: read SMTP root CA: %w", err)
+		}
+		roots, err = x509.SystemCertPool()
+		if err != nil || roots == nil {
+			roots = x509.NewCertPool()
+		}
+		if !roots.AppendCertsFromPEM(pem) {
+			return nil, errors.New("mailer: SMTP root CA file contains no certificates")
+		}
+	}
+	return &SMTP{cfg: cfg, rootCAs: roots}, nil
 }
 func (s *SMTP) Send(ctx context.Context, m Message) error {
 	from, err := mail.ParseAddress(s.cfg.From)
@@ -64,7 +84,7 @@ func (s *SMTP) Send(ctx context.Context, m Message) error {
 	host, _, _ := net.SplitHostPort(s.cfg.Address)
 	var client *smtp.Client
 	if s.cfg.ImplicitTLS {
-		tlsConn := tls.Client(conn, &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12})
+		tlsConn := tls.Client(conn, &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12, RootCAs: s.rootCAs})
 		if err = tlsConn.HandshakeContext(ctx); err != nil {
 			return err
 		}
@@ -80,7 +100,7 @@ func (s *SMTP) Send(ctx context.Context, m Message) error {
 		if ok, _ := client.Extension("STARTTLS"); !ok {
 			return errors.New("mailer: SMTP server does not support STARTTLS")
 		}
-		if err = client.StartTLS(&tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}); err != nil {
+		if err = client.StartTLS(&tls.Config{ServerName: host, MinVersion: tls.VersionTLS12, RootCAs: s.rootCAs}); err != nil {
 			return err
 		}
 	}
