@@ -12,6 +12,7 @@ type ProductKind string
 const (
 	ProductKindSubscription ProductKind = "subscription"
 	ProductKindOneTime      ProductKind = "one_time"
+	ProductKindBooking      ProductKind = "booking"
 )
 
 // IntentStatus is the lifecycle of a payment intent.
