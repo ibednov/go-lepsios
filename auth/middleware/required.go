@@ -21,15 +21,13 @@ func Required(v validator.TokenValidator, opts ...Option) gin.HandlerFunc {
 
 		raw, ok := extractBearer(c.GetHeader("Authorization"))
 		if !ok {
-			response.Unauthorized(c, "UNAUTHORIZED", "Authorization header is required")
-			c.Abort()
+			unauthorized(c, o, "UNAUTHORIZED", "Authorization header is required")
 			return
 		}
 
 		principal, err := v.ValidateToken(c.Request.Context(), raw)
 		if err != nil {
-			response.Unauthorized(c, "INVALID_TOKEN", "Invalid or expired token")
-			c.Abort()
+			unauthorized(c, o, "INVALID_TOKEN", "Invalid or expired token")
 			return
 		}
 
@@ -38,6 +36,15 @@ func Required(v validator.TokenValidator, opts ...Option) gin.HandlerFunc {
 		c.Set(httpmw.CtxKeyUserID, principal.UserID)
 		c.Next()
 	}
+}
+
+func unauthorized(c *gin.Context, o options, code, defaultMessage string) {
+	if o.unauthorizedFn != nil {
+		o.unauthorizedFn(c, code)
+	} else {
+		response.Unauthorized(c, code, defaultMessage)
+	}
+	c.Abort()
 }
 
 func extractBearer(header string) (string, bool) {

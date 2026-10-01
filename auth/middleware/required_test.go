@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/ibednov/go-lepsios/auth/claims"
 	"github.com/ibednov/go-lepsios/auth/middleware"
 	"github.com/ibednov/go-lepsios/auth/token"
 	"github.com/ibednov/go-lepsios/auth/validator"
-	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,6 +46,24 @@ func TestRequiredMissingHeader(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
 	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestRequiredUsesApplicationUnauthorizedHandler(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mgr := token.NewManager(token.Config{Secret: "s", AccessTTL: time.Minute, RefreshTTL: time.Hour})
+	r := gin.New()
+	r.Use(middleware.Required(
+		mgr.Validator(),
+		middleware.WithUnauthorizedHandler(func(c *gin.Context, code string) {
+			c.JSON(http.StatusUnauthorized, gin.H{"code": code, "message": "localized"})
+		}),
+	))
+	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"localized"}`, w.Body.String())
 }
 
 func TestRequiredSkipPaths(t *testing.T) {

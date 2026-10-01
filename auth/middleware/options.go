@@ -1,7 +1,10 @@
 package middleware
 
+import "github.com/gin-gonic/gin"
+
 type options struct {
-	skipPaths []string
+	skipPaths      []string
+	unauthorizedFn func(*gin.Context, string)
 }
 
 // Option configures auth middleware.
@@ -11,6 +14,14 @@ type Option func(*options)
 func WithSkipPaths(paths ...string) Option {
 	return func(o *options) {
 		o.skipPaths = append(o.skipPaths, paths...)
+	}
+}
+
+// WithUnauthorizedHandler lets an application own the response for auth
+// failures, for example to apply its API error catalog and request locale.
+func WithUnauthorizedHandler(handler func(*gin.Context, string)) Option {
+	return func(o *options) {
+		o.unauthorizedFn = handler
 	}
 }
 
