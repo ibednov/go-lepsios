@@ -39,7 +39,7 @@ func (b *Bundle) LoadMessages(locale string, data []byte) error {
 
 // Localizer returns a localizer for locale (falls back to default).
 type Localizer struct {
-	inner *goi18n.Localizer
+	inner  *goi18n.Localizer
 	locale string
 }
 
@@ -64,7 +64,10 @@ func (b *Bundle) Localizer(locale string) *Localizer {
 	if parseErr != nil || len(preferred) == 0 {
 		preferred = []language.Tag{language.Make(locale)}
 	}
-	tag, _, _ := matcher.Match(preferred...)
+	tag, _, confidence := matcher.Match(preferred...)
+	if confidence == language.No && err == nil {
+		tag = defaultTag
+	}
 	return &Localizer{inner: goi18n.NewLocalizer(b.bundle, tag.String()), locale: tag.String()}
 }
 
