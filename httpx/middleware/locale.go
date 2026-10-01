@@ -1,8 +1,6 @@
 package middleware
 
 import (
-	"strings"
-
 	"github.com/ibednov/go-lepsios/i18n"
 	"github.com/gin-gonic/gin"
 )
@@ -13,15 +11,12 @@ func Locale(bundle *i18n.Bundle, fallback string) gin.HandlerFunc {
 		fallback = "en"
 	}
 	return func(c *gin.Context) {
-		lang := c.GetHeader("Accept-Language")
-		if lang == "" {
-			lang = fallback
+		acceptLanguage := c.GetHeader("Accept-Language")
+		if acceptLanguage == "" {
+			acceptLanguage = fallback
 		}
-		lang = strings.Split(lang, ",")[0]
-		lang = strings.TrimSpace(strings.Split(lang, ";")[0])
-
-		loc := bundle.Localizer(lang)
-		ctx := i18n.SetLocale(c.Request.Context(), lang)
+		loc := bundle.Localizer(acceptLanguage)
+		ctx := i18n.SetLocale(c.Request.Context(), loc.Locale())
 		ctx = i18n.SetLocalizer(ctx, loc)
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
