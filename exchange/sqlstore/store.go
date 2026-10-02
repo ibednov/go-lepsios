@@ -1,11 +1,11 @@
 // Package sqlstore implements exchange.Store on the currency_rates table schema:
 //
-//	rate_date DATE, currency TEXT, rate_to_byn NUMERIC, scale INT,
+//	rate_date DATE, currency TEXT, rate_to_base NUMERIC, scale INT,
 //	provider TEXT, fetched_at TIMESTAMPTZ
 //	PRIMARY KEY (rate_date, currency, provider)
 //
-// Column rate_to_byn is historical: it stores BasePerUnit for the provider hub
-// (BYN for nbrb, AZN for cbar, …).
+// rate_to_base stores OfficialRate.BasePerUnit for the provider hub.
+// Legacy column name rate_to_byn is still supported via Store.RateColumn.
 package sqlstore
 
 import (
@@ -17,9 +17,23 @@ import (
 	"github.com/ibednov/go-lepsios/currency"
 )
 
+const (
+	RateColumn       = "rate_to_base"
+	LegacyRateColumn = "rate_to_byn"
+)
+
 // Store is a Postgres-backed day cache for official rates.
 type Store struct {
 	DB *sql.DB
+	// RateColumn defaults to rate_to_base. Set LegacyRateColumn for old DBs.
+	RateColumn string
+}
+
+func (s *Store) rateColumn() string {
+	if s != nil && s.RateColumn != "" {
+		return s.RateColumn
+	}
+	return RateColumn
 }
 
 // LoadDay returns cached rates for provider (excluding missing rows).
@@ -27,12 +41,14 @@ func (s *Store) LoadDay(ctx context.Context, rateDate time.Time, provider string
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("sqlstore: nil db")
 	}
-	rows, err := s.DB.QueryContext(ctx, `
-SELECT currency, rate_to_byn, scale
+	col := s.rateColumn()
+	q := fmt.Sprintf(`
+SELECT currency, %s, scale
 FROM currency_rates
 WHERE rate_date = $1 AND provider = $2
 ORDER BY currency ASC
-`, rateDate, provider)
+`, col)
+	rows, err := s.DB.QueryContext(ctx, q, rateDate, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -65,23 +81,24 @@ func (s *Store) StoreDay(ctx context.Context, rateDate time.Time, provider strin
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("sqlstore: nil db")
 	}
+	col := s.rateColumn()
 	now := time.Now().UTC()
 	for _, r := range rates {
 		if !r.Code.IsValid() || r.Scale <= 0 || r.BasePerUnit <= 0 {
 			continue
 		}
-		// Hub identity row (BYN=1 or AZN=1) — kept in memory via WithBase only.
 		if r.Scale == 1 && r.BasePerUnit == 1 {
 			continue
 		}
-		_, err := s.DB.ExecContext(ctx, `
-INSERT INTO currency_rates (rate_date, currency, rate_to_byn, scale, provider, fetched_at)
+		q := fmt.Sprintf(`
+INSERT INTO currency_rates (rate_date, currency, %s, scale, provider, fetched_at)
 VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (rate_date, currency, provider) DO UPDATE
-SET rate_to_byn = EXCLUDED.rate_to_byn,
+SET %s = EXCLUDED.%s,
     scale = EXCLUDED.scale,
     fetched_at = EXCLUDED.fetched_at
-`, rateDate, r.Code.String(), r.BasePerUnit, r.Scale, provider, now)
+`, col, col, col)
+		_, err := s.DB.ExecContext(ctx, q, rateDate, r.Code.String(), r.BasePerUnit, r.Scale, provider, now)
 		if err != nil {
 			return err
 		}

@@ -104,16 +104,18 @@ func (c *Cached) EnsureDay(ctx context.Context, rateDate time.Time) ([]currency.
 	day := rateDate.Format("2006-01-02")
 
 	if c.Store != nil {
-		existing, err := c.Store.LoadDay(ctx, rateDate, providerID)
-		if err != nil {
-			return nil, err
-		}
-		if len(existing) > 0 {
-			if c.Hooks.OnCacheHit != nil {
-				c.Hooks.OnCacheHit()
+		for _, id := range providerLookupIDs(c.Provider) {
+			existing, err := c.Store.LoadDay(ctx, rateDate, id)
+			if err != nil {
+				return nil, err
 			}
-			log.Debug("exchange.cache.hit", "provider", providerID, "rate_date", day, "n", len(existing))
-			return WithBase(base, existing, rateDate), nil
+			if len(existing) > 0 {
+				if c.Hooks.OnCacheHit != nil {
+					c.Hooks.OnCacheHit()
+				}
+				log.Debug("exchange.cache.hit", "provider", id, "rate_date", day, "n", len(existing))
+				return WithBase(base, existing, rateDate), nil
+			}
 		}
 	}
 
@@ -168,6 +170,30 @@ func WithBase(base currency.Code, rates []currency.OfficialRate, rateDate time.T
 // Deprecated: use WithBase(currency.BYN, rates, rateDate).
 func WithBYN(rates []currency.OfficialRate, rateDate time.Time) []currency.OfficialRate {
 	return WithBase(currency.BYN, rates, rateDate)
+}
+
+// providerLookupIDs returns canonical ID first, then legacy keys.
+func providerLookupIDs(p Provider) []string {
+	if p == nil {
+		return nil
+	}
+	out := make([]string, 0, 1+len(p.LegacyIDs()))
+	seen := map[string]struct{}{}
+	add := func(id string) {
+		if id == "" {
+			return
+		}
+		if _, ok := seen[id]; ok {
+			return
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	add(p.ID())
+	for _, id := range p.LegacyIDs() {
+		add(id)
+	}
+	return out
 }
 
 // TruncateDateUTC keeps Y-M-D in UTC midnight.

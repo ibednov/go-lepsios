@@ -12,11 +12,14 @@ import (
 
 type stubProvider struct {
 	id        string
+	legacy    []string
 	countries []string
 	base      currency.Code
 }
 
 func (p stubProvider) ID() string { return p.id }
+
+func (p stubProvider) LegacyIDs() []string { return p.legacy }
 
 func (p stubProvider) Countries() []string { return p.countries }
 
@@ -34,11 +37,18 @@ func (p stubProvider) FetchRates(_ context.Context, _ time.Time) (exchange.Snaps
 func TestRegistryGet(t *testing.T) {
 	t.Parallel()
 
-	reg := exchange.NewRegistry(stubProvider{id: "nbrb", countries: []string{"by"}})
+	reg := exchange.NewRegistry(
+		stubProvider{id: "by_nbrb", legacy: []string{"nbrb"}, countries: []string{"by"}},
+		stubProvider{id: "az_cbar", countries: []string{"az"}, base: currency.AZN},
+	)
 
 	got, err := reg.Get("BY")
 	require.NoError(t, err)
-	require.Equal(t, "nbrb", got.ID())
+	require.Equal(t, "by_nbrb", got.ID())
+
+	got, err = reg.Get("AZ")
+	require.NoError(t, err)
+	require.Equal(t, "az_cbar", got.ID())
 
 	_, err = reg.Get("CN")
 	require.ErrorIs(t, err, exchange.ErrProviderNotFound)

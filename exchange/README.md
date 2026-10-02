@@ -2,9 +2,13 @@
 
 Country → FX provider registry.
 
-Providers expose `BaseCurrency()` (hub for `OfficialRate.BasePerUnit`):
+Provider IDs are country-prefixed; legacy keys stay readable from cache/DB:
 
-- NBRB (`BY`) → BYN
-- CBAR (`AZ`) → AZN (planned)
+| Country | Provider | ID | Legacy ID | Base |
+|---------|----------|----|-----------|------|
+| BY | NBRB | `by_nbrb` | `nbrb` | BYN |
+| AZ | CBAR | `az_cbar` | — | AZN |
 
-Depends on `github.com/ibednov/go-lepsios/currency`.
+`OfficialRate.BasePerUnit` is always relative to `Provider.BaseCurrency()`.
+
+SQL cache column: `rate_to_base` (legacy name `rate_to_byn` via `sqlstore.LegacyRateColumn`).
