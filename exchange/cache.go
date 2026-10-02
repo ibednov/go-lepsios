@@ -77,12 +77,21 @@ func (c *Cached) ConvertCents(
 	return Conversion{AmountCents: outCents, Rate: rate, RateDate: rateDate}, nil
 }
 
+func (c *Cached) base() currency.Code {
+	if c != nil && c.Provider != nil {
+		if base := c.Provider.BaseCurrency(); base.IsValid() {
+			return base
+		}
+	}
+	return currency.BYN
+}
+
 func (c *Cached) converterFor(ctx context.Context, rateDate time.Time) (*currency.Converter, error) {
 	rates, err := c.EnsureDay(ctx, rateDate)
 	if err != nil {
 		return nil, err
 	}
-	return currency.NewConverter(rates), nil
+	return currency.NewConverter(c.base(), rates), nil
 }
 
 // EnsureDay returns rates for rateDate (cache → provider → fallback).
@@ -91,6 +100,7 @@ func (c *Cached) EnsureDay(ctx context.Context, rateDate time.Time) ([]currency.
 		return nil, fmt.Errorf("exchange: nil provider")
 	}
 	providerID := c.Provider.ID()
+	base := c.base()
 	day := rateDate.Format("2006-01-02")
 
 	if c.Store != nil {
@@ -103,7 +113,7 @@ func (c *Cached) EnsureDay(ctx context.Context, rateDate time.Time) ([]currency.
 				c.Hooks.OnCacheHit()
 			}
 			log.Debug("exchange.cache.hit", "provider", providerID, "rate_date", day, "n", len(existing))
-			return WithBYN(existing, rateDate), nil
+			return WithBase(base, existing, rateDate), nil
 		}
 	}
 
@@ -115,10 +125,10 @@ func (c *Cached) EnsureDay(ctx context.Context, rateDate time.Time) ([]currency.
 		}
 		fallback := c.Fallback
 		if len(fallback) == 0 {
-			fallback = currency.DefaultOfficialRates()
+			fallback = currency.DefaultOfficialRatesFor(base)
 		}
 		log.Warn("exchange.fetch.failed", "provider", providerID, "rate_date", day, "error", fetchErr.Error())
-		return WithBYN(fallback, rateDate), nil
+		return WithBase(base, fallback, rateDate), nil
 	}
 	if c.Store != nil {
 		if err := c.Store.StoreDay(ctx, rateDate, providerID, snap.Rates); err != nil {
@@ -130,25 +140,34 @@ func (c *Cached) EnsureDay(ctx context.Context, rateDate time.Time) ([]currency.
 		c.Hooks.OnFetch()
 	}
 	log.Info("exchange.cache.stored", "provider", providerID, "rate_date", day, "n", len(snap.Rates))
-	return WithBYN(snap.Rates, rateDate), nil
+	return WithBase(base, snap.Rates, rateDate), nil
 }
 
-// WithBYN ensures BYN rate=1 is present.
-func WithBYN(rates []currency.OfficialRate, rateDate time.Time) []currency.OfficialRate {
+// WithBase ensures the hub currency rate=1 is present.
+func WithBase(base currency.Code, rates []currency.OfficialRate, rateDate time.Time) []currency.OfficialRate {
+	if !base.IsValid() {
+		base = currency.BYN
+	}
 	out := make([]currency.OfficialRate, 0, len(rates)+1)
-	hasBYN := false
+	hasBase := false
 	for _, r := range rates {
-		if r.Code == currency.BYN {
-			hasBYN = true
+		if r.Code == base {
+			hasBase = true
 		}
 		out = append(out, r)
 	}
-	if !hasBYN {
+	if !hasBase {
 		out = append(out, currency.OfficialRate{
-			Code: currency.BYN, Scale: 1, BYNPerUnit: 1, Date: rateDate,
+			Code: base, Scale: 1, BasePerUnit: 1, Date: rateDate,
 		})
 	}
 	return out
+}
+
+// WithBYN ensures BYN rate=1 is present.
+// Deprecated: use WithBase(currency.BYN, rates, rateDate).
+func WithBYN(rates []currency.OfficialRate, rateDate time.Time) []currency.OfficialRate {
+	return WithBase(currency.BYN, rates, rateDate)
 }
 
 // TruncateDateUTC keeps Y-M-D in UTC midnight.

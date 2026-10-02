@@ -10,6 +10,7 @@ type Code string
 
 const (
 	BYN Code = "BYN"
+	AZN Code = "AZN"
 	USD Code = "USD"
 	RUB Code = "RUB"
 	KZT Code = "KZT"
@@ -24,6 +25,7 @@ var (
 
 var supported = map[Code]struct{}{
 	BYN: {},
+	AZN: {},
 	USD: {},
 	RUB: {},
 	KZT: {},

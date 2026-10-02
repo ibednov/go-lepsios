@@ -31,17 +31,17 @@ func ratesFromDTO(items []rateDTO, rateDate time.Time) []currency.OfficialRate {
 			}
 		}
 		out = append(out, currency.OfficialRate{
-			Code:       code,
-			Scale:      item.CurScale,
-			BYNPerUnit: item.CurOfficialRate,
-			Date:       d,
+			Code:        code,
+			Scale:       item.CurScale,
+			BasePerUnit: item.CurOfficialRate,
+			Date:        d,
 		})
 	}
 	out = append(out, currency.OfficialRate{
-		Code:       currency.BYN,
-		Scale:      1,
-		BYNPerUnit: 1,
-		Date:       rateDate,
+		Code:        currency.BYN,
+		Scale:       1,
+		BasePerUnit: 1,
+		Date:        rateDate,
 	})
 	return out
 }

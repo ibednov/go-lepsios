@@ -1,5 +1,10 @@
 # exchange
 
-Country → FX provider registry. MVP provider: NBRB (`BY`).
+Country → FX provider registry.
 
-Depends on `github.com/ibednov/go-lepsios/currency`. CNY is accepted when NBRB returns it.
+Providers expose `BaseCurrency()` (hub for `OfficialRate.BasePerUnit`):
+
+- NBRB (`BY`) → BYN
+- CBAR (`AZ`) → AZN (planned)
+
+Depends on `github.com/ibednov/go-lepsios/currency`.

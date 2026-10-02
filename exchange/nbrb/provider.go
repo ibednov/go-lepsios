@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ibednov/go-lepsios/currency"
 	"github.com/ibednov/go-lepsios/exchange"
 )
 
@@ -25,6 +26,10 @@ func (p *Provider) ID() string {
 
 func (p *Provider) Countries() []string {
 	return []string{"BY"}
+}
+
+func (p *Provider) BaseCurrency() currency.Code {
+	return currency.BYN
 }
 
 func (p *Provider) FetchRates(ctx context.Context, date time.Time) (exchange.Snapshot, error) {

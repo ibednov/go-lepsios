@@ -17,7 +17,7 @@ func TestParse(t *testing.T) {
 		{"1 230,55", 123055, false},
 		{"0.5", 50, false},
 		{"-100", -10000, false},
-		{"0", 0, true}, // должна быть > 0
+		{"0", 0, true},
 		{"abc", 0, true},
 		{"1.2.3", 0, true},
 		{"", 0, true},
@@ -38,11 +38,11 @@ func TestFormat(t *testing.T) {
 		cents int64
 		want  string
 	}{
-		{0, "0р"},
-		{45000, "450р"},
-		{45050, "450,50р"},
-		{123055, "1 230,55р"},
-		{-123055, "-1 230,55р"},
+		{0, "0 BYN"},
+		{45000, "450 BYN"},
+		{45050, "450,50 BYN"},
+		{123055, "1 230,55 BYN"},
+		{-123055, "-1 230,55 BYN"},
 	}
 	for _, c := range cases {
 		if Format(c.cents) != c.want {
@@ -51,8 +51,16 @@ func TestFormat(t *testing.T) {
 	}
 }
 
+func TestFormatCur(t *testing.T) {
+	if got := FormatCur(17000, "AZN"); got != "170 AZN" {
+		t.Errorf("FormatCur AZN got %q", got)
+	}
+	if got := FormatCur(10050, "USD"); got != "100,50 USD" {
+		t.Errorf("FormatCur USD got %q", got)
+	}
+}
+
 func TestParseLocaleSpace(t *testing.T) {
-	// неразрывный пробел (часто приходит от Telegram)
 	got, err := Parse("1" + "\u00a0" + "000,50")
 	if err != nil || got != 100050 {
 		t.Fatalf("got %d err=%v", got, err)

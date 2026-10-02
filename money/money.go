@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// Parse parses a user-entered ruble amount into cents.
+// Parse parses a user-entered amount into cents.
 // Supported: "450", "450.50", "450,50", "1 230", "1 230.55".
 func Parse(raw string) (int64, error) {
 	s := strings.TrimSpace(raw)
@@ -70,12 +70,12 @@ func Parse(raw string) (int64, error) {
 	return cents, nil
 }
 
-// Format renders cents as "12 400р" or "450,50р" (BYN shorthand).
+// Format renders cents as "12 400 BYN" (default wallet currency).
 func Format(cents int64) string {
 	return FormatCur(cents, "BYN")
 }
 
-// FormatCur renders cents with a currency suffix (BYN → "р", else ISO code).
+// FormatCur renders cents with an ISO 4217 suffix, e.g. "450,50 BYN", "12 USD".
 func FormatCur(cents int64, code string) string {
 	sign := ""
 	if cents < 0 {
@@ -94,8 +94,8 @@ func FormatCur(cents int64, code string) string {
 		b.WriteRune(d)
 	}
 
-	suffix := "р"
-	if code != "" && code != "BYN" {
+	suffix := " BYN"
+	if code != "" {
 		suffix = " " + code
 	}
 	if kops == 0 {
