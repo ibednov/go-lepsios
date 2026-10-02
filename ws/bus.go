@@ -38,12 +38,29 @@ func (b *Bus) PublishUser(ctx context.Context, userID string, envelope []byte) e
 		b.hub.Deliver(userID, envelope)
 	}
 	if b.rdb == nil {
+		b.incPublished()
 		return nil
 	}
 	if err := b.rdb.Publish(ctx, b.UserChannel(userID), envelope).Err(); err != nil {
+		b.incPublishError()
 		return fmt.Errorf("ws bus publish: %w", err)
 	}
+	b.incPublished()
 	return nil
+}
+
+func (b *Bus) incPublished() {
+	if b == nil || b.hub == nil || b.hub.counters == nil {
+		return
+	}
+	b.hub.counters.EventsPublished.Add(1)
+}
+
+func (b *Bus) incPublishError() {
+	if b == nil || b.hub == nil || b.hub.counters == nil {
+		return
+	}
+	b.hub.counters.PublishErrors.Add(1)
 }
 
 func (b *Bus) Run(ctx context.Context) {

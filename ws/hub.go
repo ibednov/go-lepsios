@@ -25,6 +25,8 @@ type Conn struct {
 
 	mu        sync.Mutex
 	subs      map[RoomRef]struct{}
+	frameLim  *windowLimiter
+	subLim    *windowLimiter
 	closeOnce sync.Once
 }
 
@@ -66,22 +68,35 @@ func (c *Conn) closeSend() {
 }
 
 type Hub struct {
-	mu    sync.RWMutex
-	users map[string]map[*Conn]struct{}
+	mu       sync.RWMutex
+	users    map[string]map[*Conn]struct{}
+	counters *Counters
 }
 
 func NewHub() *Hub {
-	return &Hub{users: make(map[string]map[*Conn]struct{})}
+	return &Hub{
+		users:    make(map[string]map[*Conn]struct{}),
+		counters: &Counters{},
+	}
+}
+
+func (h *Hub) Counters() *Counters {
+	if h == nil {
+		return nil
+	}
+	return h.counters
 }
 
 func (h *Hub) Register(userID string, conn *websocket.Conn) *Conn {
 	c := &Conn{
-		id:     conn.RemoteAddr().String() + ":" + time.Now().Format("150405.000"),
-		userID: userID,
-		hub:    h,
-		ws:     conn,
-		send:   make(chan []byte, sendBuffer),
-		subs:   make(map[RoomRef]struct{}),
+		id:       conn.RemoteAddr().String() + ":" + time.Now().Format("150405.000"),
+		userID:   userID,
+		hub:      h,
+		ws:       conn,
+		send:     make(chan []byte, sendBuffer),
+		subs:     make(map[RoomRef]struct{}),
+		frameLim: newWindowLimiter(defaultMaxFramesPerWindow, defaultLimitWindow),
+		subLim:   newWindowLimiter(defaultMaxSubsPerWindow, defaultLimitWindow),
 	}
 	h.mu.Lock()
 	if h.users[userID] == nil {
@@ -89,6 +104,9 @@ func (h *Hub) Register(userID string, conn *websocket.Conn) *Conn {
 	}
 	h.users[userID][c] = struct{}{}
 	h.mu.Unlock()
+	if h.counters != nil {
+		h.counters.Connections.Add(1)
+	}
 	go c.writePump()
 	return c
 }
@@ -97,6 +115,7 @@ func (h *Hub) Unregister(c *Conn) {
 	if c == nil {
 		return
 	}
+	removed := false
 	h.mu.Lock()
 	conns := h.users[c.userID]
 	if conns != nil {
@@ -106,9 +125,13 @@ func (h *Hub) Unregister(c *Conn) {
 				delete(h.users, c.userID)
 			}
 			c.closeSend()
+			removed = true
 		}
 	}
 	h.mu.Unlock()
+	if removed && h.counters != nil {
+		h.counters.Connections.Add(-1)
+	}
 	if c.ws != nil {
 		_ = c.ws.Close()
 	}
@@ -175,6 +198,9 @@ func (h *Hub) Close() {
 		if c.ws != nil {
 			_ = c.ws.Close()
 		}
+		if h.counters != nil {
+			h.counters.Connections.Add(-1)
+		}
 	}
 }
 
@@ -232,3 +258,10 @@ func (c *Conn) SendEnvelope(typ string, payload any) {
 }
 
 func (c *Conn) UserID() string { return c.userID }
+
+func (c *Conn) ID() string {
+	if c == nil {
+		return ""
+	}
+	return c.id
+}
