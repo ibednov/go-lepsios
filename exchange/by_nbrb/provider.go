@@ -1,4 +1,4 @@
-package cbar
+package by_nbrb
 
 import (
 	"context"
@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	ProviderID       = "az_cbar"
-	DefaultBaseURL   = "https://www.cbar.az/currencies"
-	LegacyProviderID = "" // no pre-prefix key yet
+	// ProviderID is the canonical cache/DB key (country-prefixed).
+	ProviderID = "by_nbrb"
+	// LegacyProviderID is the pre-prefix key; still loaded from existing rows.
+	LegacyProviderID = "nbrb"
 )
 
 type Provider struct {
@@ -21,24 +22,24 @@ type Provider struct {
 }
 
 func NewProvider(baseURL string, httpClient *http.Client) *Provider {
-	if baseURL == "" {
-		baseURL = DefaultBaseURL
-	}
 	return &Provider{client: NewClient(baseURL, httpClient)}
 }
 
-func (p *Provider) ID() string { return ProviderID }
+func (p *Provider) ID() string {
+	return ProviderID
+}
 
 func (p *Provider) LegacyIDs() []string {
-	if LegacyProviderID == "" {
-		return nil
-	}
 	return []string{LegacyProviderID}
 }
 
-func (p *Provider) Countries() []string { return []string{"AZ"} }
+func (p *Provider) Countries() []string {
+	return []string{"BY"}
+}
 
-func (p *Provider) BaseCurrency() currency.Code { return currency.AZN }
+func (p *Provider) BaseCurrency() currency.Code {
+	return currency.BYN
+}
 
 func (p *Provider) FetchRates(ctx context.Context, date time.Time) (exchange.Snapshot, error) {
 	rateDate := date
@@ -55,6 +56,6 @@ func (p *Provider) FetchRates(ctx context.Context, date time.Time) (exchange.Sna
 	return exchange.Snapshot{
 		ProviderID: ProviderID,
 		Date:       rateDate,
-		Rates:      ratesFromXML(items, rateDate),
+		Rates:      ratesFromDTO(items, rateDate),
 	}, nil
 }

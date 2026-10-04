@@ -1,4 +1,4 @@
-package nbrb
+package by_nbrb
 
 import (
 	"testing"

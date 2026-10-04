@@ -1,4 +1,4 @@
-package cbar
+package az_cbar
 
 import (
 	"encoding/xml"

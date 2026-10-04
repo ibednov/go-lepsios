@@ -1,7 +1,8 @@
-package cbar
+package by_nbrb
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,28 +27,44 @@ func NewClient(baseURL string, httpClient *http.Client) *Client {
 	}
 }
 
-// FetchRatesOnDate GETs {base}/{DD.MM.YYYY}.xml
-func (c *Client) FetchRatesOnDate(ctx context.Context, ondate time.Time) ([]xmlValute, error) {
+// FetchAllRates fetches today's (or latest published) daily rates.
+func (c *Client) FetchAllRates(ctx context.Context) ([]rateDTO, error) {
+	return c.fetch(ctx, "")
+}
+
+// FetchRatesOnDate fetches official rates for ondate (YYYY-MM-DD).
+func (c *Client) FetchRatesOnDate(ctx context.Context, ondate time.Time) ([]rateDTO, error) {
+	return c.fetch(ctx, ondate.Format("2006-01-02"))
+}
+
+func (c *Client) fetch(ctx context.Context, ondate string) ([]rateDTO, error) {
 	start := time.Now()
-	reqURL := fmt.Sprintf("%s/%s.xml", c.baseURL, ondate.Format("02.01.2006"))
+	reqURL := fmt.Sprintf("%s/rates?periodicity=0&parammode=2", c.baseURL)
+	if ondate != "" {
+		reqURL = fmt.Sprintf("%s/rates?ondate=%s&periodicity=0&parammode=2", c.baseURL, ondate)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		logSidecarFinished(reqURL, 0, 0, time.Since(start), err)
 		return nil, err
 	}
-	req.Header.Set("Accept", "application/xml")
+	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "go-lepsios-exchange/1.0")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		logSidecarFinished(reqURL, 0, 0, time.Since(start), err)
+		status := 0
+		if resp != nil {
+			status = resp.StatusCode
+		}
+		logSidecarFinished(reqURL, status, 0, time.Since(start), err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		err := fmt.Errorf("cbar: unexpected status %d", resp.StatusCode)
+		err := fmt.Errorf("nbrb: unexpected status %d", resp.StatusCode)
 		logSidecarFinished(reqURL, resp.StatusCode, 0, time.Since(start), err)
 		return nil, err
 	}
@@ -58,11 +75,12 @@ func (c *Client) FetchRatesOnDate(ctx context.Context, ondate time.Time) ([]xmlV
 		return nil, err
 	}
 
-	items, err := parseXMLValutes(body)
-	if err != nil {
+	var items []rateDTO
+	if err := json.Unmarshal(body, &items); err != nil {
 		logSidecarFinished(reqURL, resp.StatusCode, 0, time.Since(start), err)
 		return nil, err
 	}
+
 	logSidecarFinished(reqURL, resp.StatusCode, len(items), time.Since(start), nil)
 	return items, nil
 }
