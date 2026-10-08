@@ -40,6 +40,7 @@ func TestRegistryGet(t *testing.T) {
 	reg := exchange.NewRegistry(
 		stubProvider{id: "by_nbrb", legacy: []string{"nbrb"}, countries: []string{"by"}},
 		stubProvider{id: "az_cbar", countries: []string{"az"}, base: currency.AZN},
+		stubProvider{id: "pl_nbp", countries: []string{"pl"}, base: currency.PLN},
 	)
 
 	got, err := reg.Get("BY")
@@ -49,6 +50,10 @@ func TestRegistryGet(t *testing.T) {
 	got, err = reg.Get("AZ")
 	require.NoError(t, err)
 	require.Equal(t, "az_cbar", got.ID())
+
+	got, err = reg.Get("PL")
+	require.NoError(t, err)
+	require.Equal(t, "pl_nbp", got.ID())
 
 	_, err = reg.Get("CN")
 	require.ErrorIs(t, err, exchange.ErrProviderNotFound)

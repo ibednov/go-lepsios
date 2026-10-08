@@ -12,7 +12,7 @@ type Provider interface {
 	// LegacyIDs are old provider keys still readable from cache/DB (may be empty).
 	LegacyIDs() []string
 	Countries() []string
-	// BaseCurrency is the hub for this provider's OfficialRate.BasePerUnit (BYN, AZN, …).
+	// BaseCurrency is the hub for this provider's OfficialRate.BasePerUnit (BYN, AZN, PLN, …).
 	BaseCurrency() currency.Code
 	FetchRates(ctx context.Context, date time.Time) (Snapshot, error)
 }

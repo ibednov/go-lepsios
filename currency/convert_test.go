@@ -50,6 +50,24 @@ func TestConvertUSDToAZN(t *testing.T) {
 	require.Equal(t, currency.AZN, conv.Base())
 }
 
+func TestParsePLN(t *testing.T) {
+	t.Parallel()
+
+	code, err := currency.Parse("pln")
+	require.NoError(t, err)
+	require.Equal(t, currency.PLN, code)
+}
+
+func TestConvertUSDToPLN(t *testing.T) {
+	t.Parallel()
+
+	conv := currency.NewConverter(currency.PLN, nil)
+	got, err := conv.Convert(10, currency.USD, currency.PLN)
+	require.NoError(t, err)
+	require.Equal(t, 39.1, got)
+	require.Equal(t, currency.PLN, conv.Base())
+}
+
 func TestConvertUnknownCode(t *testing.T) {
 	t.Parallel()
 

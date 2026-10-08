@@ -8,6 +8,7 @@ Provider packages and IDs are country-prefixed:
 |---------|---------|----|---------------|------|
 | BY | `exchange/by_nbrb` | `by_nbrb` | `exchange/nbrb` | BYN |
 | AZ | `exchange/az_cbar` | `az_cbar` | — | AZN |
+| PL | `exchange/pl_nbp` | `pl_nbp` | — | PLN |
 
 `OfficialRate.BasePerUnit` is always relative to `Provider.BaseCurrency()`.
 

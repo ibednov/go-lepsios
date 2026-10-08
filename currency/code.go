@@ -16,6 +16,7 @@ const (
 	KZT Code = "KZT"
 	EUR Code = "EUR"
 	CNY Code = "CNY"
+	PLN Code = "PLN"
 )
 
 var (
@@ -31,6 +32,7 @@ var supported = map[Code]struct{}{
 	KZT: {},
 	EUR: {},
 	CNY: {},
+	PLN: {},
 }
 
 func (c Code) String() string {
