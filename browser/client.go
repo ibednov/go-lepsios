@@ -392,15 +392,27 @@ func responseMatchesRequest(respURL, requestURL string) bool {
 	if respURL == "" || requestURL == "" {
 		return false
 	}
-	if strings.Contains(respURL, "composer-api.bx/page/json") {
-		return true
-	}
 	got, err1 := url.Parse(respURL)
 	want, err2 := url.Parse(requestURL)
 	if err1 != nil || err2 != nil {
-		return strings.Contains(respURL, requestURL)
+		return false
 	}
-	return strings.EqualFold(got.Hostname(), want.Hostname()) && got.Path == want.Path
+	if !sameOzonOrWBHost(got.Hostname(), want.Hostname()) {
+		return false
+	}
+	if want.Path != "" && got.Path != want.Path && !strings.Contains(got.Path, "composer-api.bx/page/json") {
+		return false
+	}
+	if target := want.Query().Get("url"); target != "" {
+		return got.Query().Get("url") == target || strings.Contains(got.RawQuery, target)
+	}
+	return got.Path == want.Path
+}
+
+func sameOzonOrWBHost(a, b string) bool {
+	a = strings.ToLower(strings.TrimPrefix(a, "www."))
+	b = strings.ToLower(strings.TrimPrefix(b, "www."))
+	return a == b
 }
 
 func originHome(raw string) string {

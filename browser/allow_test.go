@@ -79,6 +79,9 @@ func TestResponseMatchesRequest(t *testing.T) {
 	if responseMatchesRequest("https://ozon.by/product/x-1/", req) {
 		t.Fatal("html is not composer")
 	}
+	if responseMatchesRequest("https://ozon.by/api/composer-api.bx/page/json/v2?url=/", req) {
+		t.Fatal("home composer is not the product")
+	}
 }
 
 func TestOriginHome(t *testing.T) {
