@@ -50,6 +50,19 @@ func TestSetAllowedHostSuffixes(t *testing.T) {
 	}
 }
 
+func TestLooksLikeChallengeAndReady(t *testing.T) {
+	if !LooksLikeChallenge(`<html>Antibot Challenge Page</html>`) {
+		t.Fatal("challenge html")
+	}
+	if !LooksLikeChallenge(`{"incidentId":"x","challengeURL":"/c"}`) {
+		t.Fatal("challenge json")
+	}
+	ready := `{"widgetStates":{"webProductHeading":"{}"}}`
+	if LooksLikeChallenge(ready) || !LooksLikeReady(ready) {
+		t.Fatal("ready composer")
+	}
+}
+
 func TestParseAllowedHosts(t *testing.T) {
 	got := ParseAllowedHosts(" ozon.by, .wb.ru,,Example.COM ")
 	if len(got) != 3 || got[0] != "ozon.by" || got[1] != "wb.ru" || got[2] != "example.com" {

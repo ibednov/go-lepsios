@@ -27,8 +27,9 @@ type remoteFetchRequest struct {
 }
 
 type remoteFetchResponse struct {
-	Body []byte `json:"body"`
-	HTML []byte `json:"html"`
+	Body   []byte `json:"body"`
+	HTML   []byte `json:"html"`
+	Status int    `json:"status"`
 }
 
 type remoteCaptureRequest struct {
@@ -82,7 +83,7 @@ func (c *RemoteClient) FetchInPage(ctx context.Context, warmupURL, requestURL st
 	}, &out); err != nil {
 		return PageSnapshot{}, err
 	}
-	return PageSnapshot{Body: out.Body, HTML: out.HTML}, nil
+	return PageSnapshot{Body: out.Body, HTML: out.HTML, Status: out.Status}, nil
 }
 
 func (c *RemoteClient) CaptureJSON(ctx context.Context, pageURL, urlGlob string) ([]byte, error) {

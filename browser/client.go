@@ -12,6 +12,9 @@ import (
 
 const stealthInitScript = `
 Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+window.chrome = window.chrome || { runtime: {} };
+Object.defineProperty(navigator, 'languages', { get: () => ['ru-RU', 'ru', 'en-US', 'en'] });
+Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
 `
 
 // Client is one Chromium per process. Launch is lazy: playwright.Run on first use.
@@ -211,7 +214,7 @@ func (c *Client) FetchInPage(ctx context.Context, warmupURL, requestURL string) 
 
 	timeoutMS := float64(c.opts.Timeout.Milliseconds())
 	if _, err := page.Goto(warmupURL, playwright.PageGotoOptions{
-		WaitUntil: playwright.WaitUntilStateDomcontentloaded,
+		WaitUntil: playwright.WaitUntilStateLoad,
 		Timeout:   &timeoutMS,
 	}); err != nil {
 		if captureCtx.Err() != nil {
@@ -220,13 +223,24 @@ func (c *Client) FetchInPage(ctx context.Context, warmupURL, requestURL string) 
 		return PageSnapshot{}, fmt.Errorf("warmup %s: %w", warmupURL, err)
 	}
 
-	if err := waitWarmup(captureCtx, page, c.opts.Warmup); err != nil {
+	if err := waitUntilPageReady(captureCtx, page, c.opts.Warmup); err != nil {
 		return PageSnapshot{}, err
 	}
 
 	html, err := page.Content()
 	if err != nil {
 		return PageSnapshot{}, fmt.Errorf("page content: %w", err)
+	}
+	if LooksLikeChallenge(html) {
+		if _, reloadErr := page.Reload(playwright.PageReloadOptions{
+			WaitUntil: playwright.WaitUntilStateLoad,
+			Timeout:   &timeoutMS,
+		}); reloadErr == nil {
+			_ = waitUntilPageReady(captureCtx, page, c.opts.Warmup/2)
+			if next, nextErr := page.Content(); nextErr == nil {
+				html = next
+			}
+		}
 	}
 
 	out := PageSnapshot{HTML: []byte(html)}
@@ -249,38 +263,70 @@ func (c *Client) FetchInPage(ctx context.Context, warmupURL, requestURL string) 
 		return out, fmt.Errorf("page fetch %s: %w", requestURL, err)
 	}
 
-	body, err := evaluateBody(raw)
+	status, body, err := evaluateFetch(raw)
 	if err != nil {
 		return out, err
 	}
+	out.Status = status
 	out.Body = body
 	return out, nil
 }
 
-func waitWarmup(ctx context.Context, page playwright.Page, warmup time.Duration) error {
-	if warmup <= 0 {
+func waitUntilPageReady(ctx context.Context, page playwright.Page, maxWait time.Duration) error {
+	if maxWait <= 0 {
 		return nil
 	}
-	done := make(chan struct{})
-	go func() {
-		page.WaitForTimeout(float64(warmup.Milliseconds()))
-		close(done)
-	}()
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+	deadline := time.Now().Add(maxWait)
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		html, err := page.Content()
+		if err == nil && LooksLikeReady(html) {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return nil
+		}
+		page.WaitForTimeout(400)
 	}
 }
 
-func evaluateBody(raw any) ([]byte, error) {
+func LooksLikeChallenge(html string) bool {
+	if html == "" {
+		return true
+	}
+	return strings.Contains(html, "Antibot Challenge") ||
+		strings.Contains(html, "challengeURL") ||
+		strings.Contains(html, "ozon-antibot") ||
+		(strings.Contains(html, "incidentId") && !strings.Contains(html, "widgetStates"))
+}
+
+func LooksLikeReady(html string) bool {
+	if LooksLikeChallenge(html) {
+		return false
+	}
+	return strings.Contains(html, "widgetStates") ||
+		strings.Contains(html, "webProductHeading") ||
+		strings.Contains(html, `"@type":"Product"`) ||
+		strings.Contains(html, "og:title") ||
+		len(html) > 8000
+}
+
+func evaluateFetch(raw any) (int, []byte, error) {
 	m, ok := raw.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("page fetch: unexpected result %T", raw)
+		return 0, nil, fmt.Errorf("page fetch: unexpected result %T", raw)
 	}
 	body, _ := m["body"].(string)
-	return []byte(body), nil
+	status := 0
+	switch v := m["status"].(type) {
+	case float64:
+		status = int(v)
+	case int:
+		status = v
+	}
+	return status, []byte(body), nil
 }
 
 func sameRequestURL(warmupURL, requestURL string) bool {

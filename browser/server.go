@@ -3,6 +3,7 @@ package browser
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -45,8 +46,9 @@ type fetchRequest struct {
 }
 
 type fetchResponse struct {
-	Body []byte `json:"body"`
-	HTML []byte `json:"html"`
+	Body   []byte `json:"body"`
+	HTML   []byte `json:"html"`
+	Status int    `json:"status,omitempty"`
 }
 
 type captureRequest struct {
@@ -82,10 +84,14 @@ func (s *Server) handleFetchInPage(w http.ResponseWriter, r *http.Request) {
 
 	snap, err := s.pages.FetchInPage(r.Context(), req.WarmupURL, req.RequestURL)
 	if err != nil {
+		log.Printf("fetch-in-page failed warmup=%s request=%s err=%v", req.WarmupURL, req.RequestURL, err)
 		writeError(w, statusFor(err), err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, fetchResponse{Body: snap.Body, HTML: snap.HTML})
+	html := string(snap.HTML)
+	log.Printf("fetch-in-page ok status=%d body=%d html=%d challenge=%t ready=%t warmup=%s",
+		snap.Status, len(snap.Body), len(snap.HTML), LooksLikeChallenge(html), LooksLikeReady(html), req.WarmupURL)
+	writeJSON(w, http.StatusOK, fetchResponse{Body: snap.Body, HTML: snap.HTML, Status: snap.Status})
 }
 
 func (s *Server) handleCaptureJSON(w http.ResponseWriter, r *http.Request) {

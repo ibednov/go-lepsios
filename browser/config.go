@@ -21,7 +21,7 @@ type Config struct {
 // ConfigFromEnv reads BROWSER_* keys, with PARSER_BROWSER_* aliases for Wishimi.
 func ConfigFromEnv() Config {
 	timeout, _ := time.ParseDuration(firstEnv("45s", "BROWSER_TIMEOUT", "PARSER_BROWSER_TIMEOUT"))
-	warmup, _ := time.ParseDuration(firstEnv("8s", "BROWSER_WARMUP", "PARSER_BROWSER_WARMUP"))
+	warmup, _ := time.ParseDuration(firstEnv("20s", "BROWSER_WARMUP", "PARSER_BROWSER_WARMUP"))
 	headless := parseBool(firstEnv("true", "BROWSER_HEADLESS", "PARSER_BROWSER_HEADLESS"), true)
 	return Config{
 		Listen:         firstEnv(":8090", "BROWSER_LISTEN", "PARSER_BROWSER_LISTEN"),
