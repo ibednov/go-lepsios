@@ -22,3 +22,9 @@ services:
       BROWSER_EXECUTABLE: ${BROWSER_EXECUTABLE:-}
       BROWSER_ALLOWED_HOSTS: ${BROWSER_ALLOWED_HOSTS:-ozon.ru,ozon.by,wildberries.ru,wildberries.by,wb.ru}
     restart: unless-stopped
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true
