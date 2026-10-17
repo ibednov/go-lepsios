@@ -15,6 +15,7 @@ type Config struct {
 	Timeout        time.Duration
 	Warmup         time.Duration
 	ExecutablePath string
+	ProxyURL       string
 	AllowedHosts   []string
 }
 
@@ -30,6 +31,7 @@ func ConfigFromEnv() Config {
 		Timeout:        timeout,
 		Warmup:         warmup,
 		ExecutablePath: firstEnv("", "BROWSER_EXECUTABLE", "PARSER_BROWSER_EXECUTABLE"),
+		ProxyURL:       firstEnv("", "BROWSER_HTTP_PROXY", "PARSER_OZON_HTTP_PROXY", "PARSER_HTTP_PROXY"),
 		AllowedHosts:   ParseAllowedHosts(firstEnv("", "BROWSER_ALLOWED_HOSTS", "PARSER_BROWSER_ALLOWED_HOSTS")),
 	}
 }

@@ -21,6 +21,7 @@ services:
       BROWSER_WARMUP: ${BROWSER_WARMUP:-20s}
       BROWSER_EXECUTABLE: ${BROWSER_EXECUTABLE:-}
       BROWSER_ALLOWED_HOSTS: ${BROWSER_ALLOWED_HOSTS:-ozon.ru,ozon.by,wildberries.ru,wildberries.by,wb.ru}
+      BROWSER_HTTP_PROXY: ${BROWSER_HTTP_PROXY:-}
     restart: unless-stopped
     networks:
       - dokploy-network

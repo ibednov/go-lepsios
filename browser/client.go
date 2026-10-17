@@ -93,6 +93,9 @@ func (c *Client) startLocked() error {
 		exec := c.opts.ExecutablePath
 		launch.ExecutablePath = &exec
 	}
+	if proxy := proxyFromURL(c.opts.ProxyURL); proxy != nil {
+		launch.Proxy = proxy
+	}
 
 	br, err := pw.Chromium.Launch(launch)
 	if err != nil {
@@ -413,6 +416,30 @@ func sameOzonOrWBHost(a, b string) bool {
 	a = strings.ToLower(strings.TrimPrefix(a, "www."))
 	b = strings.ToLower(strings.TrimPrefix(b, "www."))
 	return a == b
+}
+
+func proxyFromURL(raw string) *playwright.Proxy {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return &playwright.Proxy{Server: raw}
+	}
+	scheme := u.Scheme
+	if scheme == "" {
+		scheme = "http"
+	}
+	out := &playwright.Proxy{Server: scheme + "://" + u.Host}
+	if u.User != nil {
+		user := u.User.Username()
+		out.Username = &user
+		if pass, ok := u.User.Password(); ok {
+			out.Password = &pass
+		}
+	}
+	return out
 }
 
 func originHome(raw string) string {

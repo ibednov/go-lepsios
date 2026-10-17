@@ -20,7 +20,11 @@ func main() {
 		Timeout:        cfg.Timeout,
 		Warmup:         cfg.Warmup,
 		ExecutablePath: cfg.ExecutablePath,
+		ProxyURL:       cfg.ProxyURL,
 	})
+	if cfg.ProxyURL != "" {
+		log.Print("browser sidecar proxy enabled")
+	}
 	defer func() {
 		if err := pages.Close(); err != nil {
 			log.Printf("browser close failed: %v", err)

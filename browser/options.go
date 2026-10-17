@@ -15,6 +15,7 @@ type Options struct {
 	Warmup         time.Duration
 	UserAgent      string
 	ExecutablePath string
+	ProxyURL       string
 	MaxConcurrent  int
 }
 
