@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +16,8 @@ Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
 window.chrome = window.chrome || { runtime: {} };
 Object.defineProperty(navigator, 'languages', { get: () => ['ru-RU', 'ru', 'en-US', 'en'] });
 Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
 `
 
 // Client is one Chromium per process. Launch is lazy: playwright.Run on first use.
@@ -213,6 +216,30 @@ func (c *Client) FetchInPage(ctx context.Context, warmupURL, requestURL string) 
 	}()
 
 	timeoutMS := float64(c.opts.Timeout.Milliseconds())
+	heard := &networkCapture{}
+	page.OnResponse(func(resp playwright.Response) {
+		if resp == nil || !responseMatchesRequest(resp.URL(), requestURL) {
+			return
+		}
+		body, err := resp.Body()
+		if err != nil {
+			return
+		}
+		heard.put(resp.Status(), body)
+	})
+
+	if home := originHome(warmupURL); home != "" && !sameRequestURL(home, warmupURL) {
+		_, _ = page.Goto(home, playwright.PageGotoOptions{
+			WaitUntil: playwright.WaitUntilStateDomcontentloaded,
+			Timeout:   &timeoutMS,
+		})
+		homeWait := c.opts.Warmup / 3
+		if homeWait > 8*time.Second {
+			homeWait = 8 * time.Second
+		}
+		_ = waitUntilPageReady(captureCtx, page, homeWait, heard.has)
+	}
+
 	if _, err := page.Goto(warmupURL, playwright.PageGotoOptions{
 		WaitUntil: playwright.WaitUntilStateLoad,
 		Timeout:   &timeoutMS,
@@ -223,7 +250,7 @@ func (c *Client) FetchInPage(ctx context.Context, warmupURL, requestURL string) 
 		return PageSnapshot{}, fmt.Errorf("warmup %s: %w", warmupURL, err)
 	}
 
-	if err := waitUntilPageReady(captureCtx, page, c.opts.Warmup); err != nil {
+	if err := waitUntilPageReady(captureCtx, page, c.opts.Warmup, heard.has); err != nil {
 		return PageSnapshot{}, err
 	}
 
@@ -231,12 +258,12 @@ func (c *Client) FetchInPage(ctx context.Context, warmupURL, requestURL string) 
 	if err != nil {
 		return PageSnapshot{}, fmt.Errorf("page content: %w", err)
 	}
-	if LooksLikeChallenge(html) {
+	if LooksLikeChallenge(html) && !heard.has() {
 		if _, reloadErr := page.Reload(playwright.PageReloadOptions{
 			WaitUntil: playwright.WaitUntilStateLoad,
 			Timeout:   &timeoutMS,
 		}); reloadErr == nil {
-			_ = waitUntilPageReady(captureCtx, page, c.opts.Warmup/2)
+			_ = waitUntilPageReady(captureCtx, page, c.opts.Warmup/2, heard.has)
 			if next, nextErr := page.Content(); nextErr == nil {
 				html = next
 			}
@@ -244,6 +271,11 @@ func (c *Client) FetchInPage(ctx context.Context, warmupURL, requestURL string) 
 	}
 
 	out := PageSnapshot{HTML: []byte(html)}
+	if status, body, ok := heard.take(); ok {
+		out.Status = status
+		out.Body = body
+		return out, nil
+	}
 	if sameRequestURL(warmupURL, requestURL) {
 		out.Body = out.HTML
 		return out, nil
@@ -272,7 +304,7 @@ func (c *Client) FetchInPage(ctx context.Context, warmupURL, requestURL string) 
 	return out, nil
 }
 
-func waitUntilPageReady(ctx context.Context, page playwright.Page, maxWait time.Duration) error {
+func waitUntilPageReady(ctx context.Context, page playwright.Page, maxWait time.Duration, extraReady func() bool) error {
 	if maxWait <= 0 {
 		return nil
 	}
@@ -280,6 +312,9 @@ func waitUntilPageReady(ctx context.Context, page playwright.Page, maxWait time.
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
+		}
+		if extraReady != nil && extraReady() {
+			return nil
 		}
 		html, err := page.Content()
 		if err == nil && LooksLikeReady(html) {
@@ -308,9 +343,76 @@ func LooksLikeReady(html string) bool {
 	}
 	return strings.Contains(html, "widgetStates") ||
 		strings.Contains(html, "webProductHeading") ||
-		strings.Contains(html, `"@type":"Product"`) ||
-		strings.Contains(html, "og:title") ||
-		len(html) > 8000
+		strings.Contains(html, `"@type":"Product"`)
+}
+
+type networkCapture struct {
+	mu     sync.Mutex
+	body   []byte
+	status int
+}
+
+func (c *networkCapture) put(status int, body []byte) {
+	if c == nil || status != httpOK || len(body) == 0 || LooksLikeChallenge(string(body)) {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(body) <= len(c.body) {
+		return
+	}
+	c.body = append([]byte(nil), body...)
+	c.status = status
+}
+
+func (c *networkCapture) has() bool {
+	if c == nil {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.body) > 0
+}
+
+func (c *networkCapture) take() (int, []byte, bool) {
+	if c == nil {
+		return 0, nil, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.body) == 0 {
+		return 0, nil, false
+	}
+	return c.status, append([]byte(nil), c.body...), true
+}
+
+const httpOK = 200
+
+func responseMatchesRequest(respURL, requestURL string) bool {
+	if respURL == "" || requestURL == "" {
+		return false
+	}
+	if strings.Contains(respURL, "composer-api.bx/page/json") {
+		return true
+	}
+	got, err1 := url.Parse(respURL)
+	want, err2 := url.Parse(requestURL)
+	if err1 != nil || err2 != nil {
+		return strings.Contains(respURL, requestURL)
+	}
+	return strings.EqualFold(got.Hostname(), want.Hostname()) && got.Path == want.Path
+}
+
+func originHome(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Hostname() == "" {
+		return ""
+	}
+	scheme := u.Scheme
+	if scheme == "" {
+		scheme = "https"
+	}
+	return scheme + "://" + u.Host + "/"
 }
 
 func evaluateFetch(raw any) (int, []byte, error) {
@@ -356,6 +458,8 @@ func newPage(browser playwright.Browser, opts Options) (playwright.BrowserContex
 		Viewport:         &playwright.Size{Width: 1920, Height: 1080},
 		Locale:           strPtr("ru-RU"),
 		TimezoneId:       strPtr("Europe/Minsk"),
+		Geolocation:      &playwright.Geolocation{Latitude: 53.9023, Longitude: 27.5619},
+		Permissions:      []string{"geolocation"},
 		ExtraHttpHeaders: map[string]string{"Accept-Language": "ru-RU,ru;q=0.9"},
 	})
 	if err != nil {

@@ -2,6 +2,7 @@ package browser
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -60,6 +61,41 @@ func TestLooksLikeChallengeAndReady(t *testing.T) {
 	ready := `{"widgetStates":{"webProductHeading":"{}"}}`
 	if LooksLikeChallenge(ready) || !LooksLikeReady(ready) {
 		t.Fatal("ready composer")
+	}
+	shell := strings.Repeat("x", 9000) + `<meta property="og:title" content="Ozon">`
+	if LooksLikeReady(shell) {
+		t.Fatal("shell html is not a product")
+	}
+}
+
+func TestResponseMatchesRequest(t *testing.T) {
+	req := "https://ozon.by/api/composer-api.bx/page/json/v2?url=/product/x-1/"
+	if !responseMatchesRequest("https://www.ozon.by/api/composer-api.bx/page/json/v2?url=/product/x-1/&__rr=1", req) {
+		t.Fatal("composer glob")
+	}
+	if !responseMatchesRequest(req, req) {
+		t.Fatal("exact")
+	}
+	if responseMatchesRequest("https://ozon.by/product/x-1/", req) {
+		t.Fatal("html is not composer")
+	}
+}
+
+func TestOriginHome(t *testing.T) {
+	if got := originHome("https://ozon.by/product/x-1/?q=1"); got != "https://ozon.by/" {
+		t.Fatalf("home: %s", got)
+	}
+}
+
+func TestNetworkCaptureSkipsChallenge(t *testing.T) {
+	var heard networkCapture
+	heard.put(200, []byte(`{"incidentId":"x","challengeURL":"/c"}`))
+	if heard.has() {
+		t.Fatal("challenge captured")
+	}
+	heard.put(200, []byte(`{"widgetStates":{"webProductHeading":"{}"}}`))
+	if !heard.has() {
+		t.Fatal("ready not captured")
 	}
 }
 
