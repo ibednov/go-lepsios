@@ -1,0 +1,24 @@
+# Shared Chromium sidecar for marketplace page-fetch.
+# Products keep their API images slim and call this over the Docker network.
+#
+# Wishimi: PARSER_BROWSER_URL=http://lepsios-browser:8090
+# Join the same Dokploy/Docker network as the consumer API.
+
+services:
+  browser:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ${BROWSER_CONTAINER_NAME:-lepsios-browser}
+    shm_size: 256mb
+    expose:
+      - "8090"
+    environment:
+      BROWSER_LISTEN: ${BROWSER_LISTEN:-:8090}
+      BROWSER_TOKEN: ${BROWSER_TOKEN}
+      BROWSER_HEADLESS: ${BROWSER_HEADLESS:-true}
+      BROWSER_TIMEOUT: ${BROWSER_TIMEOUT:-60s}
+      BROWSER_WARMUP: ${BROWSER_WARMUP:-8s}
+      BROWSER_EXECUTABLE: ${BROWSER_EXECUTABLE:-}
+      BROWSER_ALLOWED_HOSTS: ${BROWSER_ALLOWED_HOSTS:-ozon.ru,ozon.by,wildberries.ru,wildberries.by,wb.ru}
+    restart: unless-stopped

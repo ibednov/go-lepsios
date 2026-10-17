@@ -5,6 +5,7 @@ use (
 	./audit
 	./auth
 	./billing
+	./browser
 	./chart
 	./chat
 	./config
@@ -24,7 +25,7 @@ use (
 	./mailer
 	./migrate
 	./money
-./ocr-receipts
+	./ocr-receipts
 	./productmatch
 	./rate_limit
 	./redis
