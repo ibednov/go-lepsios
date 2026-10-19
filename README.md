@@ -22,6 +22,7 @@ Multi-module Go infrastructure library for Alepsios backend services.
 | `billing` | `github.com/ibednov/go-lepsios/billing` | Payment intents, strategies (`admin_confirm`), subscription/purchase/entitlements |
 | `featureflags` | `github.com/ibednov/go-lepsios/featureflags` | Per-subject flag key helpers (normalize/merge) |
 | `chat` | `github.com/ibednov/go-lepsios/chat` | Chat rooms, members, soft-deletable messages |
+| `centrifugo` | `github.com/ibednov/go-lepsios/centrifugo` | Centrifugo HTTP API publisher client |
 
 Prefix rule: SaaS billing lives under `billing/*`. Future goods shop → `commerce/*` (never a bare `catalog`).
 
