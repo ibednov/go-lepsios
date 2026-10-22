@@ -117,6 +117,11 @@ func providerHTTPError(provider string, response *http.Response, secrets ...stri
 	return fmt.Errorf("%s returned HTTP %d: %s", provider, response.StatusCode, excerpt)
 }
 
+// ProviderHTTPError returns a bounded HTTP error excerpt with credentials redacted.
+func ProviderHTTPError(provider string, response *http.Response, secrets ...string) error {
+	return providerHTTPError(provider, response, secrets...)
+}
+
 func sanitizeExcerpt(data []byte) string {
 	text := string(data)
 	if !utf8.Valid(data) {
