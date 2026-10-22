@@ -5,10 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 var ErrUnknownStrategy = errors.New("ai: unknown provider strategy")
 var ErrInvalidStrategy = errors.New("ai: invalid provider strategy")
+var ErrMissingCredential = errors.New("ai: missing provider credential")
 
 // Credentials carries provider-specific secrets without prescribing persistence.
 type Credentials map[string]string
@@ -60,6 +62,30 @@ type Provider interface {
 type Strategy interface {
 	Name() string
 	New(Credentials) (Provider, error)
+}
+
+// ProviderBuilder creates a provider client after a strategy validates its credentials.
+// Host applications use builders to supply runtime configuration such as HTTP clients and endpoints.
+type ProviderBuilder func(Credentials) (Provider, error)
+
+type credentialStrategy struct {
+	name     string
+	required []string
+	build    ProviderBuilder
+}
+
+func (s credentialStrategy) Name() string { return s.name }
+
+func (s credentialStrategy) New(credentials Credentials) (Provider, error) {
+	for _, key := range s.required {
+		if strings.TrimSpace(credentials[key]) == "" {
+			return nil, fmt.Errorf("%w: %s", ErrMissingCredential, key)
+		}
+	}
+	if s.build == nil {
+		return nil, ErrInvalidStrategy
+	}
+	return s.build(credentials)
 }
 
 // Registry selects a provider-specific strategy by its stable name.
