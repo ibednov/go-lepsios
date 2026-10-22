@@ -18,3 +18,8 @@ Reusable actor-action audit log ("who did what").
 
 Product event types (e.g. `admin.user.deleted`), target enums and the SQL table
 (`action_events`) stay in the consumer.
+
+For CRM HTTP APIs, use the shared JSON DTOs in `http_contract.go` and follow
+[`HTTP_API.md`](./HTTP_API.md). Authentication, authorization and repository
+implementations remain in the product. Domain timelines such as expense
+history or proposal status changes are not audit logs.
