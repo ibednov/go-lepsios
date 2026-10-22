@@ -25,7 +25,9 @@ func (w *vectorHTTPWriter) Write(p []byte) (int, error) {
 		return len(p), nil
 	}
 
-	payload := bytes.TrimSpace(p)
+	// zerolog can reuse its serialization buffer as soon as Write returns.
+	// The request runs asynchronously, so it needs to own a stable copy.
+	payload := append([]byte(nil), bytes.TrimSpace(p)...)
 	go func() {
 		req, err := http.NewRequest(http.MethodPost, w.url, bytes.NewReader(payload))
 		if err != nil {
