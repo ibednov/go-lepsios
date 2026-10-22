@@ -24,6 +24,7 @@ type Turn struct {
 type Request struct {
 	Model            string
 	ReasoningEffort  string
+	Temperature      *float64
 	SystemPrompt     string
 	History          []Turn
 	Message          string

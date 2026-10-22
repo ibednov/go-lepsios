@@ -78,7 +78,7 @@ func (p *gigaChatProvider) Chat(ctx context.Context, request Request) (Result, e
 	if err != nil {
 		return Result{}, err
 	}
-	payload := chatCompletionsRequest{Model: request.Model, Messages: messages(request), MaxTokens: maxTokens(request.MaxTokens)}
+	payload := chatCompletionsRequest{Model: request.Model, Messages: messages(request), MaxTokens: request.MaxTokens}
 	var response chatCompletionsResponse
 	if err := postJSON(ctx, p.client, p.chatURL, map[string]string{"Authorization": "Bearer " + token}, payload,
 		&response, "GigaChat", token); err != nil {

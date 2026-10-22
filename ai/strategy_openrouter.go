@@ -39,11 +39,7 @@ func (*openRouterProvider) ListModels(context.Context) ([]Model, error) {
 }
 
 func (p *openRouterProvider) Chat(ctx context.Context, request Request) (Result, error) {
-	effort := request.ReasoningEffort
-	if effort == "" {
-		effort = "low"
-	}
-	payload := chatCompletionsRequest{Model: request.Model, Messages: messages(request), MaxTokens: maxTokens(request.MaxTokens), ReasoningEffort: effort}
+	payload := chatCompletionsRequest{Model: request.Model, Messages: messages(request), MaxTokens: request.MaxTokens, ReasoningEffort: request.ReasoningEffort}
 	if request.StructuredJSON || request.StructuredOutput != nil {
 		payload.ResponseFormat = &chatResponseFormat{Type: "json_object"}
 	}

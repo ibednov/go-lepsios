@@ -40,7 +40,7 @@ func (*openAIProvider) ListModels(context.Context) ([]Model, error) {
 
 func (p *openAIProvider) Chat(ctx context.Context, request Request) (Result, error) {
 	payload := openAIResponsesRequest{Model: request.Model, Instructions: request.SystemPrompt,
-		Input: responseInput(request), MaxOutputTokens: maxTokens(request.MaxTokens), Store: false}
+		Input: responseInput(request), MaxOutputTokens: request.MaxTokens, Store: false}
 	if request.StructuredOutput != nil {
 		payload.Text = &openAIResponseText{Format: openAIResponseFormat{Type: "json_schema",
 			Name: request.StructuredOutput.Name, Strict: request.StructuredOutput.Strict, Schema: request.StructuredOutput.Schema}}

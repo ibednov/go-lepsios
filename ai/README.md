@@ -12,6 +12,9 @@ Strategies own provider identity, credential validation, and vendor request/resp
 protocols. The host supplies transport configuration. The library does not read environment
 variables, persist secrets, choose a model, or decide when to fall back.
 
+Generation controls such as maximum output tokens, reasoning effort, and temperature
+are passed through from `ai.Request`; unset controls are left to the provider API.
+
 The exported constructors are `NewGigaChatStrategy`, `NewYandexStrategy`,
 `NewOpenRouterStrategy`, and `NewOpenAIStrategy`. They respectively implement
 GigaChat OAuth and chat completions, Yandex Foundation Models, OpenRouter chat

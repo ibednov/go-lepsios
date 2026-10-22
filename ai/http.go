@@ -213,10 +213,3 @@ type chatCompletionsResponse struct {
 		} `json:"completion_tokens_details"`
 	} `json:"usage"`
 }
-
-func maxTokens(value int) int {
-	if value < 1 {
-		return 1000
-	}
-	return value
-}

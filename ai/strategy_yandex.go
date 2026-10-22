@@ -52,8 +52,8 @@ func (p *yandexProvider) Chat(ctx context.Context, request Request) (Result, err
 		modelURI = "gpt://" + p.folderID + "/" + modelURI
 	}
 	payload := yandexRequest{ModelURI: modelURI}
-	payload.CompletionOptions.Temperature = 0.2
-	payload.CompletionOptions.MaxTokens = maxTokens(request.MaxTokens)
+	payload.CompletionOptions.Temperature = request.Temperature
+	payload.CompletionOptions.MaxTokens = request.MaxTokens
 	payload.Messages = append(payload.Messages, yandexMessage{Role: "system", Text: request.SystemPrompt})
 	for _, turn := range request.History {
 		payload.Messages = append(payload.Messages, yandexMessage{Role: turn.Role, Text: turn.Content})
@@ -76,9 +76,9 @@ func (p *yandexProvider) Chat(ctx context.Context, request Request) (Result, err
 type yandexRequest struct {
 	ModelURI          string `json:"modelUri"`
 	CompletionOptions struct {
-		Stream      bool    `json:"stream"`
-		Temperature float64 `json:"temperature"`
-		MaxTokens   int     `json:"maxTokens"`
+		Stream      bool     `json:"stream"`
+		Temperature *float64 `json:"temperature,omitempty"`
+		MaxTokens   int      `json:"maxTokens"`
 	} `json:"completionOptions"`
 	Messages []yandexMessage `json:"messages"`
 }
