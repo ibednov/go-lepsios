@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 )
 
 var ErrUnknownStrategy = errors.New("ai: unknown provider strategy")
@@ -23,13 +22,21 @@ type Turn struct {
 
 // Request is the provider-neutral subset of a domain's AI request.
 type Request struct {
-	Model           string
-	ReasoningEffort string
-	SystemPrompt    string
-	History         []Turn
-	Message         string
-	MaxTokens       int
-	StructuredJSON  bool
+	Model            string
+	ReasoningEffort  string
+	SystemPrompt     string
+	History          []Turn
+	Message          string
+	MaxTokens        int
+	StructuredJSON   bool
+	StructuredOutput *StructuredOutput
+}
+
+// StructuredOutput describes a provider-neutral JSON Schema output request.
+type StructuredOutput struct {
+	Name   string
+	Strict bool
+	Schema any
 }
 
 // Result contains generated text and provider usage diagnostics.
@@ -62,30 +69,6 @@ type Provider interface {
 type Strategy interface {
 	Name() string
 	New(Credentials) (Provider, error)
-}
-
-// ProviderBuilder creates a provider client after a strategy validates its credentials.
-// Host applications use builders to supply runtime configuration such as HTTP clients and endpoints.
-type ProviderBuilder func(Credentials) (Provider, error)
-
-type credentialStrategy struct {
-	name     string
-	required []string
-	build    ProviderBuilder
-}
-
-func (s credentialStrategy) Name() string { return s.name }
-
-func (s credentialStrategy) New(credentials Credentials) (Provider, error) {
-	for _, key := range s.required {
-		if strings.TrimSpace(credentials[key]) == "" {
-			return nil, fmt.Errorf("%w: %s", ErrMissingCredential, key)
-		}
-	}
-	if s.build == nil {
-		return nil, ErrInvalidStrategy
-	}
-	return s.build(credentials)
 }
 
 // Registry selects a provider-specific strategy by its stable name.
