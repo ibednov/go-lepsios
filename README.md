@@ -20,6 +20,7 @@ Multi-module Go infrastructure library for Alepsios backend services.
 | `apperr` | `github.com/ibednov/go-lepsios/apperr` | Structured app error + HTTP mapper hook |
 | `audit` | `github.com/ibednov/go-lepsios/audit` | Actor-action audit log (`who did what`) |
 | `billing` | `github.com/ibednov/go-lepsios/billing` | Payment intents, strategies (`admin_confirm`), subscription/purchase/entitlements |
+| `browser` | `github.com/ibednov/go-lepsios/browser` | Headless Chromium sidecar (fetch-in-page / capture-json over internal HTTP) |
 | `featureflags` | `github.com/ibednov/go-lepsios/featureflags` | Per-subject flag key helpers (normalize/merge) |
 | `chat` | `github.com/ibednov/go-lepsios/chat` | Chat rooms, members, soft-deletable messages |
 | `centrifugo` | `github.com/ibednov/go-lepsios/centrifugo` | Centrifugo HTTP API publisher client |

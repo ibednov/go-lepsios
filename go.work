@@ -6,6 +6,7 @@ use (
 	./ai
 	./auth
 	./billing
+	./browser
 	./chart
 	./chat
 	./centrifugo
@@ -26,7 +27,7 @@ use (
 	./mailer
 	./migrate
 	./money
-./ocr-receipts
+	./ocr-receipts
 	./productmatch
 	./rate_limit
 	./redis
