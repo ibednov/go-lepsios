@@ -29,6 +29,7 @@ type Event struct {
 	Type       string
 	ActorID    string
 	ActorKind  ActorKind
+	ActorEmail string
 	TargetType string
 	TargetID   string
 	Payload    json.RawMessage

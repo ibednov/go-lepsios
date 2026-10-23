@@ -47,6 +47,7 @@ func ToHTTPEvent(event Event) HTTPEvent {
 		Type:       event.Type,
 		ActorID:    event.ActorID,
 		ActorKind:  event.ActorKind,
+		ActorEmail: event.ActorEmail,
 		TargetType: event.TargetType,
 		TargetID:   event.TargetID,
 		Payload:    payload,
