@@ -47,7 +47,10 @@ func New(endpoint, accessKey, secretKey, bucket, region string, useSSL bool, pub
 }
 
 func (s *Adapter) Create(ctx context.Context, in files.CreateInput) error {
-	_, err := s.client.PutObject(ctx, s.bucket, in.Path, in.Reader, -1, minio.PutObjectOptions{})
+	_, err := s.client.PutObject(ctx, s.bucket, in.Path, in.Reader, -1, minio.PutObjectOptions{
+		ContentType:  in.ContentType,
+		CacheControl: in.CacheControl,
+	})
 	if err != nil {
 		return mapMinioErr(err, "files.s3-minio.adapter.upload-object")
 	}
