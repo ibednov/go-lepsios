@@ -51,13 +51,17 @@ type CredentialVerifier func(context.Context, LoginRequest) (VerifiedUser, error
 // Registrar binds and validates the service-specific phone registration request.
 type Registrar func(context.Context, *gin.Context) (VerifiedUser, error)
 
+// ErrorHandler maps a service error to an HTTP response.
+type ErrorHandler func(*gin.Context, error)
+
 type Module struct {
-	providerID provider.ID
-	tokens     *token.Manager
-	refresh    *session.RefreshService
-	verify     CredentialVerifier
-	register   Registrar
-	transport  TokenTransport
+	providerID   provider.ID
+	tokens       *token.Manager
+	refresh      *session.RefreshService
+	verify       CredentialVerifier
+	register     Registrar
+	transport    TokenTransport
+	errorHandler ErrorHandler
 }
 
 // New creates a phone-only local password authentication module.
@@ -76,12 +80,13 @@ func New(
 		}
 	}
 	return &Module{
-		providerID: providerID,
-		tokens:     tokens,
-		refresh:    refresh,
-		verify:     verify,
-		register:   register,
-		transport:  o.transport,
+		providerID:   providerID,
+		tokens:       tokens,
+		refresh:      refresh,
+		verify:       verify,
+		register:     register,
+		transport:    o.transport,
+		errorHandler: o.errorHandler,
 	}
 }
 
@@ -120,6 +125,10 @@ func (m *Module) login(c *gin.Context) {
 func (m *Module) registerHandler(c *gin.Context) {
 	verified, err := m.register(c.Request.Context(), c)
 	if err != nil {
+		if m.errorHandler != nil {
+			m.errorHandler(c, err)
+			return
+		}
 		response.BadRequest(c, "REGISTER_FAILED", err.Error())
 		return
 	}

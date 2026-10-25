@@ -31,7 +31,11 @@ func (s *Service) LockWithAttempt(ctx context.Context, key string, attemptCount 
 	}
 
 	if count > int64(attemptCount) {
-		return ErrTooManyAttempts
+		ttl, err := s.client.PTTL(ctx, key).Result()
+		if err != nil {
+			return err
+		}
+		return &TooManyAttemptsError{RetryAfter: ttl}
 	}
 
 	return nil

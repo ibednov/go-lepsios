@@ -11,7 +11,8 @@ type TokenDelivery = emailpassword.TokenDelivery
 type TokenTransport = emailpassword.TokenTransport
 
 type options struct {
-	transport TokenTransport
+	transport    TokenTransport
+	errorHandler ErrorHandler
 }
 
 // Option configures phone/password response delivery.
@@ -25,6 +26,12 @@ const (
 // WithTokenTransport sets access and refresh token delivery.
 func WithTokenTransport(transport TokenTransport) Option {
 	return func(o *options) { o.transport = transport }
+}
+
+// WithErrorHandler replaces the default registration error response. This lets
+// consuming applications preserve domain error codes and response headers.
+func WithErrorHandler(handler ErrorHandler) Option {
+	return func(o *options) { o.errorHandler = handler }
 }
 
 // HashPassword applies the shared local password policy and bcrypt hashing.
