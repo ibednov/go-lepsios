@@ -170,7 +170,11 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified Verified
 	if verified.User != nil {
 		data["user"] = verified.User
 	} else {
-		data["user"] = gin.H{"id": verified.UserID, "email": verified.Email}
+		user := gin.H{"id": verified.UserID}
+		if verified.Email != "" {
+			user["email"] = verified.Email
+		}
+		data["user"] = user
 	}
 
 	switch m.transport.Refresh {

@@ -12,6 +12,7 @@ const (
 	LocalEmailPassword ID = "local-email-password"
 	LocalEmail2FA      ID = "local-email-2fa"
 	LocalPhonePassword ID = "local-phone-password"
+	LocalPhoneTOTP     ID = "local-phone-totp"
 	Telegram           ID = "telegram"
 	Keycloak           ID = "keycloak"
 )
@@ -20,6 +21,7 @@ var all = []ID{
 	LocalEmailPassword,
 	LocalEmail2FA,
 	LocalPhonePassword,
+	LocalPhoneTOTP,
 	Telegram,
 	Keycloak,
 }

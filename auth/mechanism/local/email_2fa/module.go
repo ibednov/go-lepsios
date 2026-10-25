@@ -164,7 +164,11 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified emailpas
 	}
 	switch {
 	case verified.User == nil:
-		data["user"] = gin.H{"id": verified.UserID, "email": verified.Email}
+		user := gin.H{"id": verified.UserID}
+		if verified.Email != "" {
+			user["email"] = verified.Email
+		}
+		data["user"] = user
 	case flattenUserData(data, verified.User):
 	default:
 		data["user"] = verified.User
