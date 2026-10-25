@@ -1,12 +1,13 @@
 package session
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/ibednov/go-lepsios/auth/validator"
 	"github.com/ibednov/go-lepsios/httpx/response"
-	"github.com/gin-gonic/gin"
 )
 
 const refreshCookieName = "refresh_token"
@@ -33,7 +34,11 @@ func refreshHandler(svc *RefreshService, o refreshLogoutOptions) gin.HandlerFunc
 
 		pair, err := svc.Refresh(c.Request.Context(), refreshToken)
 		if err != nil {
-			response.Unauthorized(c, "INVALID_TOKEN", "Invalid or expired refresh token")
+			if errors.Is(err, ErrInvalidRefreshToken) {
+				response.Unauthorized(c, "INVALID_TOKEN", "Invalid or expired refresh token")
+				return
+			}
+			response.Internal(c, "failed to refresh session")
 			return
 		}
 

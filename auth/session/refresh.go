@@ -9,6 +9,10 @@ import (
 	"github.com/ibednov/go-lepsios/auth/token"
 )
 
+// ErrInvalidRefreshToken indicates that a refresh credential is missing,
+// expired, revoked, or otherwise unknown to the session store.
+var ErrInvalidRefreshToken = errors.New("session: invalid refresh token")
+
 // RefreshService issues token pairs and manages refresh lifecycle.
 type RefreshService struct {
 	tokens        *token.Manager
@@ -72,7 +76,7 @@ func (s *RefreshService) Refresh(ctx context.Context, refreshToken string) (Toke
 		return TokenPair{}, errors.New("session: refresh service not configured")
 	}
 	if refreshToken == "" {
-		return TokenPair{}, errors.New("session: refresh token is required")
+		return TokenPair{}, ErrInvalidRefreshToken
 	}
 
 	tokenHash := s.hash(refreshToken)
@@ -81,7 +85,7 @@ func (s *RefreshService) Refresh(ctx context.Context, refreshToken string) (Toke
 		return TokenPair{}, err
 	}
 	if userID == "" {
-		return TokenPair{}, errors.New("session: invalid refresh token")
+		return TokenPair{}, ErrInvalidRefreshToken
 	}
 
 	if err := s.store.RevokeRefresh(ctx, tokenHash); err != nil {
