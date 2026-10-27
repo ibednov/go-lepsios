@@ -15,7 +15,10 @@ import (
 	"time"
 )
 
-type Message struct{ To, Subject, Body string }
+type Message struct {
+	To, Subject, Body    string
+	HTML, IdempotencyKey string
+}
 type Sender interface {
 	Send(context.Context, Message) error
 }
@@ -131,4 +134,15 @@ func (s *SMTP) Send(ctx context.Context, m Message) error {
 		return closeErr
 	}
 	return client.Quit()
+}
+
+// Deliver implements Strategy. SMTP does not expose a provider message ID.
+func (s *SMTP) Deliver(ctx context.Context, m Message) (Receipt, error) {
+	if m.Body == "" {
+		return Receipt{}, errors.New("mailer: SMTP requires a text body")
+	}
+	if err := s.Send(ctx, m); err != nil {
+		return Receipt{}, err
+	}
+	return Receipt{Provider: "smtp"}, nil
 }
