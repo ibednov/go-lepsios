@@ -9,11 +9,20 @@ import (
 	"io"
 	"net/http"
 	"net/mail"
+	"regexp"
 	"strings"
 	"time"
+	"unicode"
 )
 
 const resendEndpoint = "https://api.resend.com/emails"
+
+const maxProviderErrorMessageLength = 512
+
+var (
+	providerEmailPattern = regexp.MustCompile(`(?i)[a-z0-9.!#$%&'*+/=?^_{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+`)
+	providerURLPattern   = regexp.MustCompile(`(?i)https?://[^\s<>"']+`)
+)
 
 type ResendConfig struct {
 	APIKey string
@@ -41,14 +50,33 @@ func NewResend(cfg ResendConfig) (*Resend, error) {
 	return &Resend{apiKey: cfg.APIKey, from: cfg.From, client: client}, nil
 }
 
-// ProviderError classifies a failed provider request without exposing its body.
+// ProviderError contains bounded, scrubbed diagnostics from a provider failure.
+// Error intentionally omits these details so callers must opt in to structured logging.
 type ProviderError struct {
 	StatusCode int
 	RetryAfter string
+	Name       string
+	Message    string
 }
 
 func (e *ProviderError) Error() string {
 	return fmt.Sprintf("mailer: Resend returned HTTP %d", e.StatusCode)
+}
+
+// DiagnosticName exposes the sanitized provider error name to callers that opt in.
+func (e *ProviderError) DiagnosticName() string {
+	if e == nil {
+		return ""
+	}
+	return e.Name
+}
+
+// DiagnosticMessage exposes the sanitized provider error message to callers that opt in.
+func (e *ProviderError) DiagnosticMessage() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
 }
 
 func (r *Resend) Deliver(ctx context.Context, m Message) (Receipt, error) {
@@ -86,7 +114,17 @@ func (r *Resend) Deliver(ctx context.Context, m Message) (Receipt, error) {
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return Receipt{}, &ProviderError{StatusCode: response.StatusCode, RetryAfter: response.Header.Get("Retry-After")}
+		var providerResponse struct {
+			Name    string `json:"name"`
+			Message string `json:"message"`
+		}
+		_ = json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(&providerResponse)
+		return Receipt{}, &ProviderError{
+			StatusCode: response.StatusCode,
+			RetryAfter: sanitizeProviderHeader(response.Header.Get("Retry-After"), 128),
+			Name:       sanitizeProviderDiagnostic(providerResponse.Name, 128, r.apiKey),
+			Message:    sanitizeProviderDiagnostic(providerResponse.Message, maxProviderErrorMessageLength, r.apiKey),
+		}
 	}
 	var result struct {
 		ID string `json:"id"`
@@ -95,4 +133,32 @@ func (r *Resend) Deliver(ctx context.Context, m Message) (Receipt, error) {
 		return Receipt{}, errors.New("mailer: invalid Resend response")
 	}
 	return Receipt{Provider: "resend", MessageID: result.ID}, nil
+}
+
+func sanitizeProviderDiagnostic(value string, maxLength int, secrets ...string) string {
+	for _, secret := range secrets {
+		if len(secret) >= 8 {
+			value = strings.ReplaceAll(value, secret, "[redacted-secret]")
+		}
+	}
+	value = providerEmailPattern.ReplaceAllString(value, "[redacted-email]")
+	value = providerURLPattern.ReplaceAllString(value, "[redacted-url]")
+	return sanitizeProviderText(value, maxLength)
+}
+
+func sanitizeProviderHeader(value string, maxLength int) string {
+	return sanitizeProviderText(value, maxLength)
+}
+
+func sanitizeProviderText(value string, maxLength int) string {
+	value = strings.TrimSpace(strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, value))
+	if len(value) <= maxLength {
+		return value
+	}
+	return strings.ToValidUTF8(value[:maxLength], "")
 }
