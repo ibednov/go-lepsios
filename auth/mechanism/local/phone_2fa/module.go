@@ -140,12 +140,13 @@ func (m *Module) respondWithTokens(c *gin.Context, verified phonepassword.Verifi
 		providerID = m.providerID
 	}
 	pair, err := m.refresh.Issue(c.Request.Context(), claims.AccessClaims{
-		UserID:   verified.UserID,
-		Provider: providerID,
-		Kind:     verified.Kind,
-		Roles:    verified.Roles,
-		Plan:     verified.Plan,
-		Features: verified.Features,
+		UserID:         verified.UserID,
+		AuthGeneration: verified.AuthGeneration,
+		Provider:       providerID,
+		Kind:           verified.Kind,
+		Roles:          verified.Roles,
+		Plan:           verified.Plan,
+		Features:       verified.Features,
 	})
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, tokenIssueFailedCode, localizedErrorMessage(c, nil, tokenIssueFailedCode, "Unable to start a session after 2FA verification."))

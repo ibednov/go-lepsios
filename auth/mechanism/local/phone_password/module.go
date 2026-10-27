@@ -141,12 +141,13 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified Verified
 		providerID = m.providerID
 	}
 	pair, err := m.refresh.Issue(c.Request.Context(), claims.AccessClaims{
-		UserID:   verified.UserID,
-		Provider: providerID,
-		Kind:     verified.Kind,
-		Roles:    verified.Roles,
-		Plan:     verified.Plan,
-		Features: verified.Features,
+		UserID:         verified.UserID,
+		AuthGeneration: verified.AuthGeneration,
+		Provider:       providerID,
+		Kind:           verified.Kind,
+		Roles:          verified.Roles,
+		Plan:           verified.Plan,
+		Features:       verified.Features,
 	})
 	if err != nil {
 		response.Internal(c, "failed to issue tokens")

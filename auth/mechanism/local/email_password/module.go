@@ -18,14 +18,15 @@ import (
 
 // VerifiedUser is returned by credential verification callbacks.
 type VerifiedUser struct {
-	UserID   string
-	Provider provider.ID
-	Email    string
-	Kind     identity.ActorKind
-	Roles    []string
-	Plan     string
-	Features []string
-	User     any // optional service-specific user DTO in responses
+	UserID         string
+	AuthGeneration *uint64
+	Provider       provider.ID
+	Email          string
+	Kind           identity.ActorKind
+	Roles          []string
+	Plan           string
+	Features       []string
+	User           any // optional service-specific user DTO in responses
 }
 
 // CredentialVerifier validates credentials (phone-first or email).
@@ -148,13 +149,14 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified Verified
 	}
 
 	accessClaims := claims.AccessClaims{
-		UserID:   verified.UserID,
-		Provider: providerID,
-		Kind:     verified.Kind,
-		Email:    verified.Email,
-		Roles:    verified.Roles,
-		Plan:     verified.Plan,
-		Features: verified.Features,
+		UserID:         verified.UserID,
+		AuthGeneration: verified.AuthGeneration,
+		Provider:       providerID,
+		Kind:           verified.Kind,
+		Email:          verified.Email,
+		Roles:          verified.Roles,
+		Plan:           verified.Plan,
+		Features:       verified.Features,
 	}
 
 	pair, err := m.refresh.Issue(c.Request.Context(), accessClaims)

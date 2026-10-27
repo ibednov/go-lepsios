@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	emailpassword "github.com/ibednov/go-lepsios/auth/mechanism/local/email_password"
 	"github.com/ibednov/go-lepsios/auth/claims"
+	emailpassword "github.com/ibednov/go-lepsios/auth/mechanism/local/email_password"
 	"github.com/ibednov/go-lepsios/auth/provider"
 	"github.com/ibednov/go-lepsios/auth/session"
 	"github.com/ibednov/go-lepsios/auth/token"
@@ -197,13 +197,14 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified emailpas
 	}
 
 	accessClaims := claims.AccessClaims{
-		UserID:   verified.UserID,
-		Provider: providerID,
-		Kind:     verified.Kind,
-		Email:    verified.Email,
-		Roles:    verified.Roles,
-		Plan:     verified.Plan,
-		Features: verified.Features,
+		UserID:         verified.UserID,
+		AuthGeneration: verified.AuthGeneration,
+		Provider:       providerID,
+		Kind:           verified.Kind,
+		Email:          verified.Email,
+		Roles:          verified.Roles,
+		Plan:           verified.Plan,
+		Features:       verified.Features,
 	}
 
 	pair, err := m.refresh.Issue(c.Request.Context(), accessClaims)
@@ -231,7 +232,6 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified emailpas
 	c.JSON(status, response.SuccessBody{Data: data})
 }
 
-
 func (m *Module) respondWithTokensRefreshCookie(c *gin.Context, status int, verified emailpassword.VerifiedUser) {
 	providerID := verified.Provider
 	if providerID == "" {
@@ -239,7 +239,8 @@ func (m *Module) respondWithTokensRefreshCookie(c *gin.Context, status int, veri
 	}
 	accessClaims := claims.AccessClaims{
 		UserID: verified.UserID, Provider: providerID, Kind: verified.Kind,
-		Email: verified.Email, Roles: verified.Roles, Plan: verified.Plan, Features: verified.Features,
+		AuthGeneration: verified.AuthGeneration,
+		Email:          verified.Email, Roles: verified.Roles, Plan: verified.Plan, Features: verified.Features,
 	}
 	pair, err := m.refresh.Issue(c.Request.Context(), accessClaims)
 	if err != nil {

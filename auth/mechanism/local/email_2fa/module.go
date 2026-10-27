@@ -143,13 +143,14 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified emailpas
 	}
 
 	accessClaims := claims.AccessClaims{
-		UserID:   verified.UserID,
-		Provider: providerID,
-		Kind:     verified.Kind,
-		Email:    verified.Email,
-		Roles:    verified.Roles,
-		Plan:     verified.Plan,
-		Features: verified.Features,
+		UserID:         verified.UserID,
+		AuthGeneration: verified.AuthGeneration,
+		Provider:       providerID,
+		Kind:           verified.Kind,
+		Email:          verified.Email,
+		Roles:          verified.Roles,
+		Plan:           verified.Plan,
+		Features:       verified.Features,
 	}
 
 	pair, err := m.refresh.Issue(c.Request.Context(), accessClaims)
