@@ -2,6 +2,8 @@
 
 JWT authentication, middleware, and login mechanisms.
 
+`recovery` provides product-neutral orchestration for one-time account recovery links. Product modules supply account lookup, quota reservation, persistence, mail composition and atomic credential mutation through typed ports. See [`recovery/README.md`](recovery/README.md) for the contract and [`recovery/ERRORS.md`](recovery/ERRORS.md) for error mapping guidance. The package tests include an independent opaque-account adapter example that does not depend on a product repository.
+
 ```go
 import (
     "github.com/ibednov/go-lepsios/auth/token"

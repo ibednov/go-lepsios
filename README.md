@@ -16,6 +16,7 @@ Multi-module Go infrastructure library for Alepsios backend services.
 | `files` | `github.com/ibednov/go-lepsios/files` | File storage adapter (local / S3-MinIO; optional object Content-Type and Cache-Control on create) |
 | `mailer` | `github.com/ibednov/go-lepsios/mailer` | Transactional email strategy router (SMTP, Resend) |
 | `crypto` | `github.com/ibednov/go-lepsios/crypto` | AES-GCM, token hash, backup codes |
+| `auth` | `github.com/ibednov/go-lepsios/auth` | Authentication mechanisms, sessions, and product-neutral recovery-link orchestration (`auth/recovery`) |
 | `redis` | `github.com/ibednov/go-lepsios/redis` | Redis client from small Config |
 | `migrate` | `github.com/ibednov/go-lepsios/migrate` | Pre-migrate `pg_dump` backup via `files.Adapter` |
 | `apperr` | `github.com/ibednov/go-lepsios/apperr` | Structured app error + HTTP mapper hook |
