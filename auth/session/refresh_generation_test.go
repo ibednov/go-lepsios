@@ -96,7 +96,7 @@ func TestGenerationLookupFailureFailsClosed(t *testing.T) {
 	require.ErrorIs(t, err, lookupErr)
 }
 
-func TestGenerationModeRejectsLegacyStoreAndMissingClaim(t *testing.T) {
+func TestGenerationModeRejectsLegacyStoreAndAllowsLegacyClaimAtZero(t *testing.T) {
 	ctx := context.Background()
 	mgr := token.NewManager(token.Config{Secret: "secret", AccessTTL: time.Minute, RefreshTTL: time.Hour})
 	resolve := func(context.Context, string) (uint64, error) { return 0, nil }
@@ -108,6 +108,9 @@ func TestGenerationModeRejectsLegacyStoreAndMissingClaim(t *testing.T) {
 	legacyToken, err := mgr.SignAccess(ctx, claims.AccessClaims{UserID: "u1"})
 	require.NoError(t, err)
 	guarded := validator.WithSessionGeneration(mgr.Validator(), resolve)
+	_, err = guarded.ValidateToken(ctx, legacyToken)
+	require.NoError(t, err)
+	guarded = validator.WithSessionGeneration(mgr.Validator(), func(context.Context, string) (uint64, error) { return 1, nil })
 	_, err = guarded.ValidateToken(ctx, legacyToken)
 	require.ErrorIs(t, err, validator.ErrStaleAuthGeneration)
 }

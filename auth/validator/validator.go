@@ -23,8 +23,10 @@ func (f TokenValidatorFunc) ValidateToken(ctx context.Context, rawToken string) 
 }
 
 // WithSessionGeneration rejects signed access tokens whose credential
-// generation no longer matches the authoritative store. A missing generation
-// or lookup error fails closed. Apply this outside any session lookup cache.
+// generation no longer matches the authoritative store. A token without a
+// generation claim is accepted only while the current generation is zero, for
+// compatibility with sessions issued before generation claims were added.
+// Lookup errors fail closed. Apply this outside any session lookup cache.
 func WithSessionGeneration(base TokenValidator, current func(context.Context, string) (uint64, error)) TokenValidator {
 	return TokenValidatorFunc(func(ctx context.Context, rawToken string) (claims.Principal, error) {
 		if base == nil || current == nil {
@@ -34,12 +36,15 @@ func WithSessionGeneration(base TokenValidator, current func(context.Context, st
 		if err != nil {
 			return claims.Principal{}, err
 		}
-		if principal.AuthGeneration == nil {
-			return claims.Principal{}, ErrStaleAuthGeneration
-		}
 		generation, err := current(ctx, principal.UserID)
 		if err != nil {
 			return claims.Principal{}, err
+		}
+		if principal.AuthGeneration == nil {
+			if generation == 0 {
+				return principal, nil
+			}
+			return claims.Principal{}, ErrStaleAuthGeneration
 		}
 		if *principal.AuthGeneration != generation {
 			return claims.Principal{}, ErrStaleAuthGeneration
