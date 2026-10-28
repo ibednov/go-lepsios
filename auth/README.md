@@ -21,3 +21,15 @@ Applications that must invalidate every session when credentials change can opt 
 The credential verifier should capture `VerifiedUser.AuthGeneration` with the credential it verified. The login modules carry that value into `claims.AccessClaims`; `Issue` compares it with the current generation before saving a session. If a login began before a password reset, its stale captured generation causes issuance to fail. For other providers, a nil generation makes `Issue` load the current generation itself.
 
 Wrap the application's access validator with `validator.WithSessionGeneration(base, currentGeneration)`. Put this wrapper outside any session lookup cache so every access request checks the authoritative generation. A legacy token without a generation claim is accepted only while the account generation is `0`; after a password reset increments it, the legacy token is rejected. A present but mismatched claim or a lookup failure is rejected. Increment the account generation in the same database transaction that changes the password; Redis token cleanup can then run independently.
+
+### 2FA credential commit contract and errors
+
+`phone_2fa.VerifiedUser.CommitSession` lets an application defer one-time credential changes until `RefreshService.Issue` has created a session. The module invokes that callback before disclosing access or refresh credentials. When a callback returns `ErrCredentialCommitConflict`, the module revokes the newly issued refresh session and responds as a failed verification. Other callback errors also revoke the undisclosed session, then return an internal error. If cleanup itself fails, the module logs the cleanup failure without logging a token and returns an internal error. `AfterCommit` runs only after the credential mutation succeeds and before tokens are delivered; use it for best-effort audit/notification side effects.
+
+| `error` | Source and trigger | HTTP | Safe message | Client behavior | Retry and trace |
+| --- | --- | --- | --- | --- | --- |
+| `error.auth.2fa.verify_failed` | `mechanism/local/phone_2fa/module.go`: invalid verification or one-time credential conflict | 401 | Unable to verify the 2FA code | Enter a valid TOTP/backup code | No automatic retry; correlate by request ID |
+| `error.auth.2fa.credential_commit_failed` | Same module: credential persistence failed after session issue; session cleanup succeeded | 500 | Unable to complete 2FA verification | Retry with a current code after service recovery | Retry is safe; correlate by request ID and `auth.2fa.credential_commit_failed` log event |
+| `error.auth.2fa.session_cleanup_failed` | Same module: revocation of the undisclosed newly issued session failed | 500 | Unable to complete 2FA verification | Do not treat the operation as successful; retry after service recovery | No client credential was disclosed; correlate by request ID and `auth.2fa.session_cleanup_failed` log event |
+
+Responses keep the standard envelope (`error`, `message`, `code`). Tokens and one-time codes are never logged.

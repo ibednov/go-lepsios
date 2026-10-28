@@ -15,6 +15,7 @@ import (
 	"github.com/ibednov/go-lepsios/auth/token"
 	"github.com/ibednov/go-lepsios/httpx/response"
 	"github.com/ibednov/go-lepsios/i18n"
+	"github.com/ibednov/go-lepsios/log"
 )
 
 const (
@@ -22,13 +23,27 @@ const (
 	generateFailedCode   = "error.auth.2fa.generate_failed"
 	verifyFailedCode     = "error.auth.2fa.verify_failed"
 	tokenIssueFailedCode = "error.auth.2fa.token_issue_failed"
+	commitFailedCode     = "error.auth.2fa.credential_commit_failed"
+	cleanupFailedCode    = "error.auth.2fa.session_cleanup_failed"
 )
+
+// ErrCredentialCommitConflict marks a one-time credential mutation that lost
+// a race after token issuance. The pair must not be disclosed to this caller.
+var ErrCredentialCommitConflict = errors.New("phone 2FA credential commit conflict")
 
 // TwoFAStore delegates phone and TOTP business logic to the consuming service.
 type TwoFAStore interface {
 	Check(ctx context.Context, c *gin.Context) (any, error)
 	Generate(ctx context.Context, c *gin.Context) (any, error)
-	Verify(ctx context.Context, c *gin.Context) (phonepassword.VerifiedUser, error)
+	Verify(ctx context.Context, c *gin.Context) (VerifiedUser, error)
+}
+
+// VerifiedUser may defer a one-time credential mutation until a session exists.
+// CommitSession runs before the token pair is returned to the client.
+type VerifiedUser struct {
+	phonepassword.VerifiedUser
+	CommitSession func(context.Context) error
+	AfterCommit   func(context.Context)
 }
 
 type options struct {
@@ -134,7 +149,7 @@ func localizedErrorMessage(c *gin.Context, err error, fallbackKey, fallbackMessa
 	return fallbackMessage
 }
 
-func (m *Module) respondWithTokens(c *gin.Context, verified phonepassword.VerifiedUser) {
+func (m *Module) respondWithTokens(c *gin.Context, verified VerifiedUser) {
 	providerID := verified.Provider
 	if providerID == "" {
 		providerID = m.providerID
@@ -151,6 +166,31 @@ func (m *Module) respondWithTokens(c *gin.Context, verified phonepassword.Verifi
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, tokenIssueFailedCode, localizedErrorMessage(c, nil, tokenIssueFailedCode, "Unable to start a session after 2FA verification."))
 		return
+	}
+	if verified.CommitSession != nil {
+		if err := verified.CommitSession(c.Request.Context()); err != nil {
+			// The token pair has not been disclosed. Revoke even when the request
+			// context was cancelled while committing the credential mutation.
+			revokeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if revokeErr := m.refresh.Logout(revokeCtx, pair.RefreshToken); revokeErr != nil {
+				logger := log.FromContext(revokeCtx)
+				logger.Error().Err(revokeErr).Msg("auth.2fa.session_cleanup_failed")
+				response.Error(c, http.StatusInternalServerError, cleanupFailedCode, "Unable to complete 2FA verification.")
+				return
+			}
+			if errors.Is(err, ErrCredentialCommitConflict) {
+				response.Unauthorized(c, verifyFailedCode, localizedErrorMessage(c, err, verifyFailedCode, "Unable to verify the 2FA code."))
+				return
+			}
+			logger := log.FromContext(c.Request.Context())
+			logger.Error().Err(err).Msg("auth.2fa.credential_commit_failed")
+			response.Error(c, http.StatusInternalServerError, commitFailedCode, "Unable to complete 2FA verification.")
+			return
+		}
+	}
+	if verified.AfterCommit != nil {
+		verified.AfterCommit(c.Request.Context())
 	}
 
 	data := gin.H{
