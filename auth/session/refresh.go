@@ -183,6 +183,19 @@ func (s *RefreshService) Logout(ctx context.Context, refreshToken string) error 
 	return s.store.RevokeRefresh(ctx, s.hash(refreshToken))
 }
 
+// LogoutSession revokes the refresh session identified by a validated access
+// token's SessionID claim. SessionID is the stored refresh-token hash assigned
+// by Issue; it is not the raw refresh token.
+func (s *RefreshService) LogoutSession(ctx context.Context, sessionID string) error {
+	if s == nil || s.store == nil {
+		return errors.New("session: refresh service not configured")
+	}
+	if sessionID == "" {
+		return errors.New("session: session ID is required")
+	}
+	return s.store.RevokeRefresh(ctx, sessionID)
+}
+
 // LogoutUser revokes all refresh tokens for a user.
 func (s *RefreshService) LogoutUser(ctx context.Context, userID string) error {
 	if s == nil || s.store == nil {

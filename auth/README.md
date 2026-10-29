@@ -24,6 +24,22 @@ The credential verifier should capture `VerifiedUser.AuthGeneration` with the cr
 
 Wrap the application's access validator with `validator.WithSessionGeneration(base, currentGeneration)`. Put this wrapper outside any session lookup cache so every access request checks the authoritative generation. A legacy token without a generation claim is accepted only while the account generation is `0`; after a password reset increments it, the legacy token is rejected. A present but mismatched claim or a lookup failure is rejected. Increment the account generation in the same database transaction that changes the password; Redis token cleanup can then run independently.
 
+## Logout scope
+
+`session.RegisterRefreshLogout` defaults to `session.LogoutAllSessions` to preserve its historical behavior. To make logout local to the authenticated refresh session, opt in with `session.WithLogoutScope(session.LogoutCurrentSession)`. This revokes the session named by the validated access token's `SessionID` claim and rejects a token without that claim; it never falls back to revoking every session. `RefreshService.Issue` binds `SessionID` to the stored refresh-token hash, so the application's validator must preserve and validate that claim before using this scope.
+
+```go
+session.RegisterRefreshLogout(
+	meGroup,
+	refreshService,
+	validator,
+	session.WithTokenTransport(session.TokenTransport{Refresh: session.DeliverCookie}),
+	session.WithLogoutScope(session.LogoutCurrentSession),
+)
+```
+
+Keep the default scope for APIs whose logout contract intentionally signs out every device. Use the current-session scope when separate clients or browser origins own independent refresh sessions.
+
 ### 2FA credential commit contract and errors
 
 `phone_2fa.VerifiedUser.CommitSession` lets an application defer one-time credential changes until `RefreshService.Issue` has created a session. The module invokes that callback before disclosing access or refresh credentials. When a callback returns `ErrCredentialCommitConflict`, the module revokes the newly issued refresh session and responds as a failed verification. Other callback errors also revoke the undisclosed session, then return an internal error. If cleanup itself fails, the module logs the cleanup failure without logging a token and returns an internal error. `AfterCommit` runs only after the credential mutation succeeds and before tokens are delivered; use it for best-effort audit/notification side effects.

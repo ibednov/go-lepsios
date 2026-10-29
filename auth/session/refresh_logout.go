@@ -72,7 +72,21 @@ func logoutHandler(svc *RefreshService, v validator.TokenValidator, o refreshLog
 			return
 		}
 
-		if err := svc.LogoutUser(c.Request.Context(), principal.UserID); err != nil {
+		var revokeErr error
+		switch o.logoutScope {
+		case LogoutAllSessions:
+			revokeErr = svc.LogoutUser(c.Request.Context(), principal.UserID)
+		case LogoutCurrentSession:
+			if principal.SessionID == "" {
+				response.Unauthorized(c, "INVALID_TOKEN", "Invalid or expired token")
+				return
+			}
+			revokeErr = svc.LogoutSession(c.Request.Context(), principal.SessionID)
+		default:
+			response.Internal(c, "failed to logout")
+			return
+		}
+		if revokeErr != nil {
 			response.Internal(c, "failed to logout")
 			return
 		}
