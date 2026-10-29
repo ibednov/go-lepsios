@@ -24,6 +24,26 @@ type GenerationStore interface {
 	FindRefreshGeneration(ctx context.Context, tokenHash string) (userID string, generation uint64, err error)
 }
 
+// ClientStore is an optional Store extension for client-aware refresh
+// sessions. Existing Store implementations remain compatible with legacy
+// sessions whose client ID is empty. Implementations must return an empty
+// client ID for refresh tokens created before client metadata was stored.
+type ClientStore interface {
+	SaveRefreshWithClient(ctx context.Context, tokenHash, userID, clientID string, expiresAt time.Time) error
+	FindRefreshClientID(ctx context.Context, tokenHash string) (clientID string, err error)
+	RevokeAllForClient(ctx context.Context, userID, clientID string) error
+	RevokeAllUnmarkedForUser(ctx context.Context, userID string) error
+}
+
+// ClientGenerationStore is required when a client-aware session store is also
+// used with credential-generation enforcement. Implementations save both
+// fields atomically so a partial session record cannot bypass either policy.
+type ClientGenerationStore interface {
+	ClientStore
+	GenerationStore
+	SaveRefreshClientGeneration(ctx context.Context, tokenHash, userID, clientID string, expiresAt time.Time, generation uint64) error
+}
+
 // TokenPair is returned after login/refresh.
 type TokenPair struct {
 	AccessToken  string `json:"access_token"`

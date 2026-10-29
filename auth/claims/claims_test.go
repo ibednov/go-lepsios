@@ -23,12 +23,14 @@ func TestToPrincipal(t *testing.T) {
 	p := claims.AccessClaims{
 		UserID:    "u1",
 		SessionID: "session-hash",
+		ClientID:  "crm",
 		Provider:  provider.LocalEmail2FA,
 		Plan:      "standard",
 		Features:  []string{"price_monitor"},
 	}.ToPrincipal()
 	require.Equal(t, provider.LocalEmail2FA, p.Provider)
 	require.Equal(t, "session-hash", p.SessionID)
+	require.Equal(t, "crm", p.ClientID)
 	require.Equal(t, "standard", p.Plan)
 	require.Equal(t, []string{"price_monitor"}, p.Features)
 }

@@ -4,10 +4,10 @@ import (
 	"context"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/ibednov/go-lepsios/auth/claims"
+	emailpassword "github.com/ibednov/go-lepsios/auth/mechanism/local/email_password"
 	"github.com/ibednov/go-lepsios/auth/provider"
 	"github.com/ibednov/go-lepsios/auth/session"
 	"github.com/ibednov/go-lepsios/auth/token"
@@ -62,6 +62,7 @@ type Module struct {
 	register     Registrar
 	transport    TokenTransport
 	errorHandler ErrorHandler
+	clientID     string
 }
 
 // New creates a phone-only local password authentication module.
@@ -87,6 +88,7 @@ func New(
 		register:     register,
 		transport:    o.transport,
 		errorHandler: o.errorHandler,
+		clientID:     o.clientID,
 	}
 }
 
@@ -142,6 +144,7 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified Verified
 	}
 	pair, err := m.refresh.Issue(c.Request.Context(), claims.AccessClaims{
 		UserID:         verified.UserID,
+		ClientID:       emailpassword.ResolveClientID(m.clientID, verified.ClientID),
 		AuthGeneration: verified.AuthGeneration,
 		Provider:       providerID,
 		Kind:           verified.Kind,
@@ -166,7 +169,7 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified Verified
 
 	switch m.transport.Refresh {
 	case DeliverCookie:
-		setRefreshCookie(c, pair.RefreshToken, m.tokens.RefreshTTL())
+		session.SetRefreshCookie(c, m.transport.RefreshCookieName, pair.RefreshToken, m.tokens.RefreshTTL())
 	case DeliverJSON:
 		data["refresh_token"] = pair.RefreshToken
 	}
@@ -175,10 +178,4 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified Verified
 		return
 	}
 	c.JSON(status, response.SuccessBody{Data: data})
-}
-
-func setRefreshCookie(c *gin.Context, refreshToken string, ttl time.Duration) {
-	secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("refresh_token", refreshToken, int(ttl.Seconds()), "/", "", secure, true)
 }

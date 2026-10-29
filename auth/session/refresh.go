@@ -85,7 +85,19 @@ func (s *RefreshService) Issue(ctx context.Context, access claims.AccessClaims) 
 	tokenHash := s.hash(refreshToken)
 	expiresAt := time.Now().Add(s.tokens.RefreshTTL())
 	var saveErr error
-	if generationStore != nil {
+	if access.ClientID != "" && generationStore != nil {
+		clientGenerationStore, ok := s.store.(ClientGenerationStore)
+		if !ok {
+			return TokenPair{}, errors.New("session: client-generation store is not configured")
+		}
+		saveErr = clientGenerationStore.SaveRefreshClientGeneration(ctx, tokenHash, access.UserID, access.ClientID, expiresAt, *access.AuthGeneration)
+	} else if access.ClientID != "" {
+		clientStore, ok := s.store.(ClientStore)
+		if !ok {
+			return TokenPair{}, errors.New("session: client-aware store is not configured")
+		}
+		saveErr = clientStore.SaveRefreshWithClient(ctx, tokenHash, access.UserID, access.ClientID, expiresAt)
+	} else if generationStore != nil {
 		saveErr = generationStore.SaveRefreshGeneration(ctx, tokenHash, access.UserID, expiresAt, *access.AuthGeneration)
 	} else {
 		saveErr = s.store.SaveRefresh(ctx, tokenHash, access.UserID, expiresAt)
@@ -109,6 +121,13 @@ func (s *RefreshService) Issue(ctx context.Context, access claims.AccessClaims) 
 
 // Refresh rotates refresh token and issues a new access token.
 func (s *RefreshService) Refresh(ctx context.Context, refreshToken string) (TokenPair, error) {
+	return s.RefreshWithClientID(ctx, refreshToken, "")
+}
+
+// RefreshWithClientID rotates a refresh token while assigning a trusted
+// server-side client ID to legacy sessions that have no stored client ID.
+// A persisted client ID always takes precedence over this fallback.
+func (s *RefreshService) RefreshWithClientID(ctx context.Context, refreshToken, legacyClientID string) (TokenPair, error) {
 	if s == nil || s.tokens == nil || s.store == nil {
 		return TokenPair{}, errors.New("session: refresh service not configured")
 	}
@@ -144,6 +163,16 @@ func (s *RefreshService) Refresh(ctx context.Context, refreshToken string) (Toke
 			return TokenPair{}, ErrInvalidRefreshToken
 		}
 	}
+	clientID := ""
+	if clientStore, ok := s.store.(ClientStore); ok {
+		clientID, err = clientStore.FindRefreshClientID(ctx, tokenHash)
+		if err != nil {
+			return TokenPair{}, err
+		}
+	}
+	if clientID == "" {
+		clientID = legacyClientID
+	}
 	access, err := s.accessClaimsForUser(ctx, userID)
 	if err != nil {
 		return TokenPair{}, err
@@ -151,6 +180,10 @@ func (s *RefreshService) Refresh(ctx context.Context, refreshToken string) (Toke
 	if s.resolveGeneration != nil {
 		access.AuthGeneration = &generation
 	}
+	// Persisted refresh-session metadata takes precedence over account claims.
+	// Empty metadata is the legacy behavior for sessions issued before clients
+	// were tagged.
+	access.ClientID = clientID
 
 	if err := s.store.RevokeRefresh(ctx, tokenHash); err != nil {
 		return TokenPair{}, err
@@ -203,6 +236,38 @@ func (s *RefreshService) LogoutUser(ctx context.Context, userID string) error {
 	}
 	if userID == "" {
 		return errors.New("session: user id is required")
+	}
+	return s.store.RevokeAllForUser(ctx, userID)
+}
+
+// LogoutClient revokes all refresh sessions belonging to one client for a
+// user. It never falls back to account-wide revocation.
+func (s *RefreshService) LogoutClient(ctx context.Context, userID, clientID string) error {
+	if s == nil || s.store == nil {
+		return errors.New("session: refresh service not configured")
+	}
+	if userID == "" || clientID == "" {
+		return errors.New("session: user id and client id are required")
+	}
+	clientStore, ok := s.store.(ClientStore)
+	if !ok {
+		return errors.New("session: client-aware store is not configured")
+	}
+	return clientStore.RevokeAllForClient(ctx, userID, clientID)
+}
+
+// LogoutUnmarkedSessions revokes only legacy sessions that have no client
+// marker when the store supports client-aware records. Older Store adapters
+// keep their historical account-wide logout behavior.
+func (s *RefreshService) LogoutUnmarkedSessions(ctx context.Context, userID string) error {
+	if s == nil || s.store == nil {
+		return errors.New("session: refresh service not configured")
+	}
+	if userID == "" {
+		return errors.New("session: user id is required")
+	}
+	if clientStore, ok := s.store.(ClientStore); ok {
+		return clientStore.RevokeAllUnmarkedForUser(ctx, userID)
 	}
 	return s.store.RevokeAllForUser(ctx, userID)
 }

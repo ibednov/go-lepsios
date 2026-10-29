@@ -3,7 +3,6 @@ package emailpassword
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/ibednov/go-lepsios/auth/claims"
@@ -19,6 +18,7 @@ import (
 // VerifiedUser is returned by credential verification callbacks.
 type VerifiedUser struct {
 	UserID         string
+	ClientID       string
 	AuthGeneration *uint64
 	Provider       provider.ID
 	Email          string
@@ -58,6 +58,7 @@ func VerifyPassword(hash, raw string) error {
 
 type options struct {
 	transport TokenTransport
+	clientID  string
 }
 
 // Option configures the email/password module.
@@ -70,6 +71,21 @@ func WithTokenTransport(t TokenTransport) Option {
 	}
 }
 
+// WithClientID assigns a server-configured client ID to sessions issued by
+// this module. It overrides VerifiedUser.ClientID and is never read from the
+// request. Empty preserves legacy untagged sessions.
+func WithClientID(clientID string) Option {
+	return func(o *options) { o.clientID = clientID }
+}
+
+// ResolveClientID selects the configured server-side client ID when present.
+func ResolveClientID(configured, verified string) string {
+	if configured != "" {
+		return configured
+	}
+	return verified
+}
+
 // Module registers email/password auth routes.
 type Module struct {
 	providerID provider.ID
@@ -78,6 +94,7 @@ type Module struct {
 	verify     CredentialVerifier
 	register   Registrar
 	transport  TokenTransport
+	clientID   string
 }
 
 // New creates an email/password auth module.
@@ -102,6 +119,7 @@ func New(
 		verify:     verify,
 		register:   register,
 		transport:  o.transport,
+		clientID:   o.clientID,
 	}
 }
 
@@ -150,6 +168,7 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified Verified
 
 	accessClaims := claims.AccessClaims{
 		UserID:         verified.UserID,
+		ClientID:       ResolveClientID(m.clientID, verified.ClientID),
 		AuthGeneration: verified.AuthGeneration,
 		Provider:       providerID,
 		Kind:           verified.Kind,
@@ -181,7 +200,7 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified Verified
 
 	switch m.transport.Refresh {
 	case DeliverCookie:
-		setRefreshCookie(c, pair.RefreshToken, m.tokens.RefreshTTL())
+		session.SetRefreshCookie(c, m.transport.RefreshCookieName, pair.RefreshToken, m.tokens.RefreshTTL())
 	case DeliverJSON:
 		data["refresh_token"] = pair.RefreshToken
 	}
@@ -191,10 +210,4 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified Verified
 		return
 	}
 	c.JSON(status, response.SuccessBody{Data: data})
-}
-
-func setRefreshCookie(c *gin.Context, refreshToken string, ttl time.Duration) {
-	secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("refresh_token", refreshToken, int(ttl.Seconds()), "/", "", secure, true)
 }

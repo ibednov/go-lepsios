@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/ibednov/go-lepsios/auth/claims"
+	emailpassword "github.com/ibednov/go-lepsios/auth/mechanism/local/email_password"
 	"github.com/ibednov/go-lepsios/auth/mechanism/local/phone_password"
 	"github.com/ibednov/go-lepsios/auth/provider"
 	"github.com/ibednov/go-lepsios/auth/session"
@@ -48,6 +49,7 @@ type VerifiedUser struct {
 
 type options struct {
 	transport phonepassword.TokenTransport
+	clientID  string
 }
 
 // Option configures token delivery for verified sessions.
@@ -58,6 +60,12 @@ func WithTokenTransport(transport phonepassword.TokenTransport) Option {
 	return func(o *options) { o.transport = transport }
 }
 
+// WithClientID assigns a server-configured client ID to sessions issued by
+// this module. It overrides VerifiedUser.ClientID and is never request input.
+func WithClientID(clientID string) Option {
+	return func(o *options) { o.clientID = clientID }
+}
+
 // Module registers phone-based TOTP routes.
 type Module struct {
 	providerID provider.ID
@@ -65,6 +73,7 @@ type Module struct {
 	refresh    *session.RefreshService
 	store      TwoFAStore
 	transport  phonepassword.TokenTransport
+	clientID   string
 }
 
 // New creates a phone-based TOTP authentication module.
@@ -90,6 +99,7 @@ func New(
 		refresh:    refresh,
 		store:      store,
 		transport:  o.transport,
+		clientID:   o.clientID,
 	}
 }
 
@@ -156,6 +166,7 @@ func (m *Module) respondWithTokens(c *gin.Context, verified VerifiedUser) {
 	}
 	pair, err := m.refresh.Issue(c.Request.Context(), claims.AccessClaims{
 		UserID:         verified.UserID,
+		ClientID:       emailpassword.ResolveClientID(m.clientID, verified.ClientID),
 		AuthGeneration: verified.AuthGeneration,
 		Provider:       providerID,
 		Kind:           verified.Kind,
@@ -206,17 +217,11 @@ func (m *Module) respondWithTokens(c *gin.Context, verified VerifiedUser) {
 	}
 	switch m.transport.Refresh {
 	case phonepassword.DeliverCookie:
-		setRefreshCookie(c, pair.RefreshToken, m.tokens.RefreshTTL())
+		session.SetRefreshCookie(c, m.transport.RefreshCookieName, pair.RefreshToken, m.tokens.RefreshTTL())
 	case phonepassword.DeliverJSON:
 		data["refresh_token"] = pair.RefreshToken
 	}
 	c.JSON(http.StatusOK, response.SuccessBody{Data: data})
-}
-
-func setRefreshCookie(c *gin.Context, refreshToken string, ttl time.Duration) {
-	secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("refresh_token", refreshToken, int(ttl.Seconds()), "/", "", secure, true)
 }
 
 func flattenUserData(data gin.H, user any) bool {

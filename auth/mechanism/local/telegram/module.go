@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/ibednov/go-lepsios/auth/claims"
@@ -35,6 +34,7 @@ type Store interface {
 
 type options struct {
 	transport emailpassword.TokenTransport
+	clientID  string
 }
 
 // Option configures the telegram auth module.
@@ -47,6 +47,12 @@ func WithTokenTransport(t emailpassword.TokenTransport) Option {
 	}
 }
 
+// WithClientID assigns a server-configured client ID to sessions issued by
+// this module. It overrides VerifiedUser.ClientID and is never request input.
+func WithClientID(clientID string) Option {
+	return func(o *options) { o.clientID = clientID }
+}
+
 // Module registers Telegram auth routes.
 type Module struct {
 	providerID provider.ID
@@ -55,6 +61,7 @@ type Module struct {
 	store      Store
 	validator  validator.TokenValidator
 	transport  emailpassword.TokenTransport
+	clientID   string
 }
 
 // New creates a Telegram auth module.
@@ -82,6 +89,7 @@ func New(
 		store:      store,
 		validator:  tokenValidator,
 		transport:  o.transport,
+		clientID:   o.clientID,
 	}
 }
 
@@ -198,6 +206,7 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified emailpas
 
 	accessClaims := claims.AccessClaims{
 		UserID:         verified.UserID,
+		ClientID:       emailpassword.ResolveClientID(m.clientID, verified.ClientID),
 		AuthGeneration: verified.AuthGeneration,
 		Provider:       providerID,
 		Kind:           verified.Kind,
@@ -224,7 +233,7 @@ func (m *Module) respondWithTokens(c *gin.Context, status int, verified emailpas
 
 	switch m.transport.Refresh {
 	case emailpassword.DeliverCookie:
-		setRefreshCookie(c, pair.RefreshToken, m.tokens.RefreshTTL())
+		session.SetRefreshCookie(c, m.transport.RefreshCookieName, pair.RefreshToken, m.tokens.RefreshTTL())
 	case emailpassword.DeliverJSON:
 		data["refresh_token"] = pair.RefreshToken
 	}
@@ -238,7 +247,7 @@ func (m *Module) respondWithTokensRefreshCookie(c *gin.Context, status int, veri
 		providerID = m.providerID
 	}
 	accessClaims := claims.AccessClaims{
-		UserID: verified.UserID, Provider: providerID, Kind: verified.Kind,
+		UserID: verified.UserID, ClientID: emailpassword.ResolveClientID(m.clientID, verified.ClientID), Provider: providerID, Kind: verified.Kind,
 		AuthGeneration: verified.AuthGeneration,
 		Email:          verified.Email, Roles: verified.Roles, Plan: verified.Plan, Features: verified.Features,
 	}
@@ -252,12 +261,6 @@ func (m *Module) respondWithTokensRefreshCookie(c *gin.Context, status int, veri
 	if verified.User != nil {
 		data["user"] = verified.User
 	}
-	setRefreshCookie(c, pair.RefreshToken, m.tokens.RefreshTTL())
+	session.SetRefreshCookie(c, m.transport.RefreshCookieName, pair.RefreshToken, m.tokens.RefreshTTL())
 	c.JSON(status, response.SuccessBody{Data: data})
-}
-
-func setRefreshCookie(c *gin.Context, refreshToken string, ttl time.Duration) {
-	secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("refresh_token", refreshToken, int(ttl.Seconds()), "/", "", secure, true)
 }

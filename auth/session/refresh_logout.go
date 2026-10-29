@@ -10,8 +10,6 @@ import (
 	"github.com/ibednov/go-lepsios/httpx/response"
 )
 
-const refreshCookieName = "refresh_token"
-
 // RegisterRefreshLogout mounts POST /refresh and POST /logout.
 func RegisterRefreshLogout(
 	rg *gin.RouterGroup,
@@ -26,13 +24,13 @@ func RegisterRefreshLogout(
 
 func refreshHandler(svc *RefreshService, o refreshLogoutOptions) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		refreshToken, ok := readRefreshToken(c, o.transport.Refresh)
+		refreshToken, ok := readRefreshToken(c, o.transport.Refresh, o.transport.RefreshCookieName)
 		if !ok {
 			response.Unauthorized(c, "UNAUTHORIZED", "Refresh token is required")
 			return
 		}
 
-		pair, err := svc.Refresh(c.Request.Context(), refreshToken)
+		pair, err := svc.RefreshWithClientID(c.Request.Context(), refreshToken, o.clientID)
 		if err != nil {
 			if errors.Is(err, ErrInvalidRefreshToken) {
 				response.Unauthorized(c, "INVALID_TOKEN", "Invalid or expired refresh token")
@@ -49,7 +47,7 @@ func refreshHandler(svc *RefreshService, o refreshLogoutOptions) gin.HandlerFunc
 
 		switch o.transport.Refresh {
 		case DeliverCookie:
-			setRefreshCookie(c, pair.RefreshToken, svc.RefreshTTL())
+			SetRefreshCookie(c, o.transport.RefreshCookieName, pair.RefreshToken, svc.RefreshTTL())
 		case DeliverJSON:
 			data["refresh_token"] = pair.RefreshToken
 		}
@@ -82,6 +80,20 @@ func logoutHandler(svc *RefreshService, v validator.TokenValidator, o refreshLog
 				return
 			}
 			revokeErr = svc.LogoutSession(c.Request.Context(), principal.SessionID)
+		case LogoutClientSessions:
+			if principal.ClientID == "" {
+				// Legacy access tokens have no client marker. Restrict their
+				// logout to the bound session instead of widening the scope.
+				if principal.SessionID == "" {
+					response.Unauthorized(c, "INVALID_TOKEN", "Invalid or expired token")
+					return
+				}
+				revokeErr = svc.LogoutSession(c.Request.Context(), principal.SessionID)
+			} else {
+				revokeErr = svc.LogoutClient(c.Request.Context(), principal.UserID, principal.ClientID)
+			}
+		case LogoutUnmarkedSessions:
+			revokeErr = svc.LogoutUnmarkedSessions(c.Request.Context(), principal.UserID)
 		default:
 			response.Internal(c, "failed to logout")
 			return
@@ -92,17 +104,21 @@ func logoutHandler(svc *RefreshService, v validator.TokenValidator, o refreshLog
 		}
 
 		if o.transport.Refresh == DeliverCookie {
-			clearRefreshCookie(c)
+			ClearRefreshCookie(c, o.transport.RefreshCookieName)
 		}
 
 		response.OK(c, nil)
 	}
 }
 
-func readRefreshToken(c *gin.Context, delivery TokenDelivery) (string, bool) {
+func readRefreshToken(c *gin.Context, delivery TokenDelivery, cookieName string) (string, bool) {
 	switch delivery {
 	case DeliverCookie:
-		token, err := c.Cookie(refreshCookieName)
+		token, err := c.Cookie(effectiveRefreshCookieName(cookieName))
+		if (err != nil || token == "") && cookieName != "" && cookieName != DefaultRefreshCookieName {
+			// Accept the old cookie on the first refresh after a client split.
+			token, err = c.Cookie(DefaultRefreshCookieName)
+		}
 		return token, err == nil && token != ""
 	case DeliverJSON:
 		var body struct {
@@ -117,15 +133,25 @@ func readRefreshToken(c *gin.Context, delivery TokenDelivery) (string, bool) {
 	}
 }
 
-func setRefreshCookie(c *gin.Context, refreshToken string, ttl time.Duration) {
+// SetRefreshCookie writes a secure HTTP-only refresh cookie. Empty cookieName
+// retains the legacy name for existing consumers.
+func SetRefreshCookie(c *gin.Context, cookieName, refreshToken string, ttl time.Duration) {
 	secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(refreshCookieName, refreshToken, int(ttl.Seconds()), "/", "", secure, true)
+	c.SetCookie(effectiveRefreshCookieName(cookieName), refreshToken, int(ttl.Seconds()), "/", "", secure, true)
 }
 
-func clearRefreshCookie(c *gin.Context) {
+// ClearRefreshCookie expires the selected refresh cookie.
+func ClearRefreshCookie(c *gin.Context, cookieName string) {
 	secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
-	c.SetCookie(refreshCookieName, "", -1, "/", "", secure, true)
+	c.SetCookie(effectiveRefreshCookieName(cookieName), "", -1, "/", "", secure, true)
+}
+
+func effectiveRefreshCookieName(cookieName string) string {
+	if cookieName == "" {
+		return DefaultRefreshCookieName
+	}
+	return cookieName
 }
 
 func extractBearer(header string) (string, bool) {

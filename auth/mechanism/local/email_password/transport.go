@@ -12,4 +12,7 @@ const (
 type TokenTransport struct {
 	Access  TokenDelivery
 	Refresh TokenDelivery
+	// RefreshCookieName separates sessions for apps sharing an API host.
+	// Empty retains the legacy "refresh_token" cookie name.
+	RefreshCookieName string
 }
