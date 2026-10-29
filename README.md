@@ -50,3 +50,7 @@ Or add both repos to a shared `go.work`.
 ## Versioning
 
 Semver tags per module: `log/v0.1.0`, `httpx/v0.1.0`, etc.
+
+## License
+
+[PolyForm Noncommercial License 1.0.0](LICENSE). Free for noncommercial use; commercial use requires the author's written permission — contact via [alexbednov.dev](https://alexbednov.dev). See [CONTRIBUTING.md](CONTRIBUTING.md).
