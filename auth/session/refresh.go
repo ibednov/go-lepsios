@@ -60,11 +60,12 @@ func (s *RefreshService) Issue(ctx context.Context, access claims.AccessClaims) 
 	if s == nil || s.tokens == nil || s.store == nil {
 		return TokenPair{}, errors.New("session: refresh service not configured")
 	}
+	stableStore, hasStableStore := s.store.(StableSessionStore)
 	var generationStore GenerationStore
 	if s.resolveGeneration != nil {
 		var ok bool
 		generationStore, ok = s.store.(GenerationStore)
-		if !ok {
+		if !ok && !hasStableStore {
 			return TokenPair{}, errors.New("session: generation store is not configured")
 		}
 		current, err := s.resolveGeneration(ctx, access.UserID)
@@ -84,6 +85,27 @@ func (s *RefreshService) Issue(ctx context.Context, access claims.AccessClaims) 
 
 	tokenHash := s.hash(refreshToken)
 	expiresAt := time.Now().Add(s.tokens.RefreshTTL())
+	if hasStableStore {
+		rawSessionID, err := GenerateRefreshToken()
+		if err != nil {
+			return TokenPair{}, err
+		}
+		access.SessionID = HashToken(rawSessionID)
+		accessToken, err := s.tokens.SignAccess(ctx, access)
+		if err != nil {
+			return TokenPair{}, err
+		}
+		if err := stableStore.SaveStableSession(ctx, tokenHash, StableSession{
+			ID: access.SessionID, UserID: access.UserID, ClientID: access.ClientID,
+			AuthGeneration: access.AuthGeneration, ExpiresAt: expiresAt,
+		}); err != nil {
+			return TokenPair{}, err
+		}
+		return TokenPair{
+			AccessToken: accessToken, RefreshToken: refreshToken,
+			ExpiresIn: s.tokens.AccessTTLSeconds(),
+		}, nil
+	}
 	var saveErr error
 	if access.ClientID != "" && generationStore != nil {
 		clientGenerationStore, ok := s.store.(ClientGenerationStore)
@@ -136,6 +158,9 @@ func (s *RefreshService) RefreshWithClientID(ctx context.Context, refreshToken, 
 	}
 
 	tokenHash := s.hash(refreshToken)
+	if stableStore, ok := s.store.(StableSessionStore); ok {
+		return s.refreshStable(ctx, stableStore, tokenHash, legacyClientID)
+	}
 	var userID string
 	var generation uint64
 	var err error
@@ -192,6 +217,59 @@ func (s *RefreshService) RefreshWithClientID(ctx context.Context, refreshToken, 
 	return s.Issue(ctx, access)
 }
 
+func (s *RefreshService) refreshStable(ctx context.Context, store StableSessionStore, oldHash, legacyClientID string) (TokenPair, error) {
+	currentSession, err := store.FindStableSessionByRefresh(ctx, oldHash)
+	if err != nil {
+		return TokenPair{}, err
+	}
+	if currentSession.ID == "" || currentSession.UserID == "" ||
+		(!currentSession.ExpiresAt.IsZero() && !time.Now().Before(currentSession.ExpiresAt)) {
+		return TokenPair{}, ErrInvalidRefreshToken
+	}
+
+	if s.resolveGeneration != nil {
+		currentGeneration, err := s.resolveGeneration(ctx, currentSession.UserID)
+		if err != nil {
+			return TokenPair{}, err
+		}
+		storedGeneration := uint64(0)
+		if currentSession.AuthGeneration != nil {
+			storedGeneration = *currentSession.AuthGeneration
+		}
+		if storedGeneration != currentGeneration {
+			return TokenPair{}, ErrInvalidRefreshToken
+		}
+		currentSession.AuthGeneration = &currentGeneration
+	}
+	if currentSession.ClientID == "" {
+		currentSession.ClientID = legacyClientID
+	}
+	access, err := s.accessClaimsForUser(ctx, currentSession.UserID)
+	if err != nil {
+		return TokenPair{}, err
+	}
+	access.ClientID = currentSession.ClientID
+	access.AuthGeneration = currentSession.AuthGeneration
+	access.SessionID = currentSession.ID
+
+	refreshToken, err := GenerateRefreshToken()
+	if err != nil {
+		return TokenPair{}, err
+	}
+	accessToken, err := s.tokens.SignAccess(ctx, access)
+	if err != nil {
+		return TokenPair{}, err
+	}
+	currentSession.ExpiresAt = time.Now().Add(s.tokens.RefreshTTL())
+	if err := store.RotateStableSession(ctx, oldHash, s.hash(refreshToken), currentSession); err != nil {
+		return TokenPair{}, err
+	}
+	return TokenPair{
+		AccessToken: accessToken, RefreshToken: refreshToken,
+		ExpiresIn: s.tokens.AccessTTLSeconds(),
+	}, nil
+}
+
 func (s *RefreshService) accessClaimsForUser(ctx context.Context, userID string) (claims.AccessClaims, error) {
 	if s.resolveClaims != nil {
 		access, err := s.resolveClaims(ctx, userID)
@@ -216,15 +294,46 @@ func (s *RefreshService) Logout(ctx context.Context, refreshToken string) error 
 	return s.store.RevokeRefresh(ctx, s.hash(refreshToken))
 }
 
+// sessionIDForRefreshToken resolves a cookie credential to its session without
+// rotating it. The HTTP logout handler uses it to avoid clearing a different
+// client's cookie when several cookie names coexist on one API host.
+func (s *RefreshService) sessionIDForRefreshToken(ctx context.Context, refreshToken string) (string, error) {
+	if s == nil || s.store == nil || refreshToken == "" {
+		return "", ErrInvalidRefreshToken
+	}
+	hash := s.hash(refreshToken)
+	if stableStore, ok := s.store.(StableSessionStore); ok {
+		entry, err := stableStore.FindStableSessionByRefresh(ctx, hash)
+		if err != nil {
+			return "", err
+		}
+		if entry.ID == "" || entry.UserID == "" {
+			return "", ErrInvalidRefreshToken
+		}
+		return entry.ID, nil
+	}
+	userID, err := s.store.FindUserByRefresh(ctx, hash)
+	if err != nil {
+		return "", err
+	}
+	if userID == "" {
+		return "", ErrInvalidRefreshToken
+	}
+	return hash, nil
+}
+
 // LogoutSession revokes the refresh session identified by a validated access
-// token's SessionID claim. SessionID is the stored refresh-token hash assigned
-// by Issue; it is not the raw refresh token.
+// token's SessionID claim. With StableSessionStore this ID does not change
+// during refresh; legacy Store implementations use the refresh-token hash.
 func (s *RefreshService) LogoutSession(ctx context.Context, sessionID string) error {
 	if s == nil || s.store == nil {
 		return errors.New("session: refresh service not configured")
 	}
 	if sessionID == "" {
 		return errors.New("session: session ID is required")
+	}
+	if stableStore, ok := s.store.(StableSessionStore); ok {
+		return stableStore.RevokeStableSession(ctx, sessionID)
 	}
 	return s.store.RevokeRefresh(ctx, sessionID)
 }

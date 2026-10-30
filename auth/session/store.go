@@ -44,6 +44,32 @@ type ClientGenerationStore interface {
 	SaveRefreshClientGeneration(ctx context.Context, tokenHash, userID, clientID string, expiresAt time.Time, generation uint64) error
 }
 
+// StableSession is the durable identity behind a rotating refresh credential.
+// For a legacy credential, ID can be its original refresh hash: that keeps
+// already-issued access tokens valid after the first rotation.
+type StableSession struct {
+	ID             string
+	UserID         string
+	ClientID       string
+	AuthGeneration *uint64
+	ExpiresAt      time.Time
+}
+
+// StableSessionStore enables stable access-token session IDs and atomic refresh
+// rotation. It is optional so existing Store implementations keep their legacy
+// behavior. FindStableSessionByRefresh must return a zero session for an absent
+// or expired credential. RotateStableSession must atomically verify that the
+// old credential still owns the session, install the new credential, update
+// metadata, and remove the old credential. A lost race or revoked session must
+// return ErrInvalidRefreshToken without creating a successor. Operational
+// errors must leave the old credential usable.
+type StableSessionStore interface {
+	SaveStableSession(ctx context.Context, refreshHash string, session StableSession) error
+	FindStableSessionByRefresh(ctx context.Context, refreshHash string) (StableSession, error)
+	RotateStableSession(ctx context.Context, oldHash, newHash string, session StableSession) error
+	RevokeStableSession(ctx context.Context, sessionID string) error
+}
+
 // TokenPair is returned after login/refresh.
 type TokenPair struct {
 	AccessToken  string `json:"access_token"`

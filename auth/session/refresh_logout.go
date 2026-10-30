@@ -24,7 +24,23 @@ func RegisterRefreshLogout(
 
 func refreshHandler(svc *RefreshService, o refreshLogoutOptions) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		refreshToken, ok := readRefreshToken(c, o.transport.Refresh, o.transport.RefreshCookieName)
+		var refreshToken string
+		var ok bool
+		writeCookieName := o.transport.RefreshCookieName
+		if o.transport.Refresh == DeliverCookie && len(o.transport.RefreshCookieCandidates) > 0 {
+			candidates, ambiguous := presentRefreshCookies(c, o.transport.RefreshCookieCandidates)
+			if ambiguous || len(candidates) > 1 {
+				response.Error(c, http.StatusConflict, "error.auth.session.ambiguous_cookie", "Multiple refresh cookies are present")
+				return
+			}
+			ok = len(candidates) == 1
+			if ok {
+				refreshToken = candidates[0].token
+				writeCookieName = candidates[0].name
+			}
+		} else {
+			refreshToken, ok = readRefreshToken(c, o.transport.Refresh, o.transport.RefreshCookieName)
+		}
 		if !ok {
 			response.Unauthorized(c, "UNAUTHORIZED", "Refresh token is required")
 			return
@@ -47,7 +63,7 @@ func refreshHandler(svc *RefreshService, o refreshLogoutOptions) gin.HandlerFunc
 
 		switch o.transport.Refresh {
 		case DeliverCookie:
-			SetRefreshCookie(c, o.transport.RefreshCookieName, pair.RefreshToken, svc.RefreshTTL())
+			SetRefreshCookie(c, writeCookieName, pair.RefreshToken, svc.RefreshTTL())
 		case DeliverJSON:
 			data["refresh_token"] = pair.RefreshToken
 		}
@@ -68,6 +84,28 @@ func logoutHandler(svc *RefreshService, v validator.TokenValidator, o refreshLog
 		if err != nil {
 			response.Unauthorized(c, "INVALID_TOKEN", "Invalid or expired token")
 			return
+		}
+
+		var matchingCookies []string
+		if o.transport.Refresh == DeliverCookie && len(o.transport.RefreshCookieCandidates) > 0 {
+			candidates, ambiguous := presentRefreshCookies(c, o.transport.RefreshCookieCandidates)
+			if ambiguous {
+				response.Error(c, http.StatusConflict, "error.auth.session.ambiguous_cookie", "Multiple refresh cookies are present")
+				return
+			}
+			for _, candidate := range candidates {
+				id, lookupErr := svc.sessionIDForRefreshToken(c.Request.Context(), candidate.token)
+				if lookupErr != nil {
+					if errors.Is(lookupErr, ErrInvalidRefreshToken) {
+						continue
+					}
+					response.Internal(c, "Failed to identify refresh session")
+					return
+				}
+				if id == principal.SessionID {
+					matchingCookies = append(matchingCookies, candidate.name)
+				}
+			}
 		}
 
 		var revokeErr error
@@ -104,11 +142,42 @@ func logoutHandler(svc *RefreshService, v validator.TokenValidator, o refreshLog
 		}
 
 		if o.transport.Refresh == DeliverCookie {
-			ClearRefreshCookie(c, o.transport.RefreshCookieName)
+			if len(o.transport.RefreshCookieCandidates) > 0 {
+				for _, name := range matchingCookies {
+					ClearRefreshCookie(c, name)
+				}
+			} else {
+				ClearRefreshCookie(c, o.transport.RefreshCookieName)
+			}
 		}
 
 		response.OK(c, nil)
 	}
+}
+
+type refreshCookieCandidate struct {
+	name  string
+	token string
+}
+
+func presentRefreshCookies(c *gin.Context, names []string) ([]refreshCookieCandidate, bool) {
+	configured := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		configured[effectiveRefreshCookieName(name)] = struct{}{}
+	}
+	seen := make(map[string]struct{}, len(configured))
+	var candidates []refreshCookieCandidate
+	for _, cookie := range c.Request.Cookies() {
+		if _, wanted := configured[cookie.Name]; !wanted || cookie.Value == "" {
+			continue
+		}
+		if _, exists := seen[cookie.Name]; exists {
+			return nil, true
+		}
+		seen[cookie.Name] = struct{}{}
+		candidates = append(candidates, refreshCookieCandidate{name: cookie.Name, token: cookie.Value})
+	}
+	return candidates, false
 }
 
 func readRefreshToken(c *gin.Context, delivery TokenDelivery, cookieName string) (string, bool) {

@@ -15,6 +15,11 @@ type TokenTransport struct {
 	// RefreshCookieName isolates refresh cookies for clients sharing an API
 	// host. Empty preserves the historical "refresh_token" name.
 	RefreshCookieName string
+	// RefreshCookieCandidates opts a legacy route into accepting several named
+	// cookies. Refresh requires exactly one present candidate and writes its
+	// successor to that same name. An ambiguous request fails without rotation.
+	// Leave empty to retain RefreshCookieName and its legacy fallback behavior.
+	RefreshCookieCandidates []string
 }
 
 // DefaultRefreshCookieName is used when a transport does not select a name.
