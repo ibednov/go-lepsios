@@ -10,6 +10,10 @@ type CreateInput struct {
 	// Empty values preserve each adapter's existing defaults.
 	ContentType  string
 	CacheControl string
+
+	// Visibility is storage-agnostic. Adapters keep using CacheControl;
+	// callers should set CacheControl via CacheControlFor(Visibility).
+	Visibility Visibility
 }
 
 type GetInput struct {
