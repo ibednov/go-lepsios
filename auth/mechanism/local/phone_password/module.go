@@ -2,6 +2,7 @@ package phonepassword
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/ibednov/go-lepsios/auth/session"
 	"github.com/ibednov/go-lepsios/auth/token"
 	"github.com/ibednov/go-lepsios/httpx/response"
+	"github.com/ibednov/go-lepsios/i18n"
 )
 
 // LoginRequest is the phone-only password login transport. It intentionally
@@ -118,10 +120,38 @@ func (m *Module) login(c *gin.Context) {
 
 	verified, err := m.verify(c.Request.Context(), req)
 	if err != nil {
-		response.Unauthorized(c, "INVALID_CREDENTIALS", "Invalid credentials")
+		if m.errorHandler != nil {
+			m.errorHandler(c, err)
+			return
+		}
+		response.Unauthorized(c, "INVALID_CREDENTIALS", localizedErrorMessage(c, err, "INVALID_CREDENTIALS", "Invalid credentials"))
 		return
 	}
 	m.respondWithTokens(c, http.StatusOK, verified)
+}
+
+// localizedErrorMessage prefers a typed message key from err, then fallbackKey,
+// then the English fallbackMessage. Catalogs live in the consuming service.
+func localizedErrorMessage(c *gin.Context, err error, fallbackKey, fallbackMessage string) string {
+	var localizer *i18n.Localizer
+	if c != nil && c.Request != nil {
+		localizer = i18n.LocalizerFromContext(c.Request.Context())
+	}
+	var keyedError interface{ GetMessageKey() string }
+	if err != nil && errors.As(err, &keyedError) && keyedError.GetMessageKey() != "" && localizer != nil {
+		key := keyedError.GetMessageKey()
+		localized := localizer.T(key)
+		if localized != "" && localized != key {
+			return localized
+		}
+	}
+	if localizer != nil {
+		localized := localizer.T(fallbackKey)
+		if localized != "" && localized != fallbackKey {
+			return localized
+		}
+	}
+	return fallbackMessage
 }
 
 func (m *Module) registerHandler(c *gin.Context) {

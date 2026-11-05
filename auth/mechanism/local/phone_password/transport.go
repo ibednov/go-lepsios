@@ -35,8 +35,9 @@ func WithClientID(clientID string) Option {
 	return func(o *options) { o.clientID = clientID }
 }
 
-// WithErrorHandler replaces the default registration error response. This lets
-// consuming applications preserve domain error codes and response headers.
+// WithErrorHandler replaces the default login and registration error responses.
+// This lets consuming applications preserve domain error codes, localized
+// messages, and response headers (for example Retry-After on rate limits).
 func WithErrorHandler(handler ErrorHandler) Option {
 	return func(o *options) { o.errorHandler = handler }
 }
