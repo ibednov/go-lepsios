@@ -26,6 +26,7 @@ Multi-module Go infrastructure library for Alepsios backend services.
 | `featureflags` | `github.com/ibednov/go-lepsios/featureflags` | Per-subject flag key helpers (normalize/merge) |
 | `chat` | `github.com/ibednov/go-lepsios/chat` | Chat rooms, members, soft-deletable messages |
 | `centrifugo` | `github.com/ibednov/go-lepsios/centrifugo` | Centrifugo HTTP API publisher client |
+| `mcpx` | `github.com/ibednov/go-lepsios/mcpx` | Reusable MCP server building blocks: key secrets, scopes, auth middleware, stateless Streamable HTTP handler, read/write tool registration, coded errors, date-range + pagination helpers |
 
 Prefix rule: SaaS billing lives under `billing/*`. Future goods shop → `commerce/*` (never a bare `catalog`).
 

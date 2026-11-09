@@ -25,6 +25,7 @@ use (
 	./keycloak
 	./log
 	./mailer
+	./mcpx
 	./migrate
 	./money
 	./ocr-receipts
