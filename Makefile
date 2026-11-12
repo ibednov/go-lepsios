@@ -1,4 +1,4 @@
-MODULES := log i18n httpx config db identity auth job rate_limit productmatch currency exchange money dates apperr audit billing browser featureflags chat crypto files redis telegram migrate keycloak mailer mcpx
+MODULES := log i18n httpx config db identity auth job rate_limit productmatch currency exchange money dates apperr audit billing browser featureflags chat crypto files redis telegram migrate keycloak mailer mcpx geoip
 
 .PHONY: lint test tidy sync tools
 

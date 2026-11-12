@@ -27,6 +27,7 @@ Multi-module Go infrastructure library for Alepsios backend services.
 | `chat` | `github.com/ibednov/go-lepsios/chat` | Chat rooms, members, soft-deletable messages |
 | `centrifugo` | `github.com/ibednov/go-lepsios/centrifugo` | Centrifugo HTTP API publisher client |
 | `mcpx` | `github.com/ibednov/go-lepsios/mcpx` | Reusable MCP server building blocks: key secrets, scopes, auth middleware, stateless Streamable HTTP handler, read/write tool registration, coded errors, date-range + pagination helpers |
+| `geoip` | `github.com/ibednov/go-lepsios/geoip` | Local MaxMind GeoLite2 country lookup for public IP addresses |
 
 Prefix rule: SaaS billing lives under `billing/*`. Future goods shop → `commerce/*` (never a bare `catalog`).
 

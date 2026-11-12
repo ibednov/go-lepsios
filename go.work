@@ -26,6 +26,7 @@ use (
 	./log
 	./mailer
 	./mcpx
+	./geoip
 	./migrate
 	./money
 	./ocr-receipts
