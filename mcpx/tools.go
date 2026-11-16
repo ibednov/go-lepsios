@@ -28,8 +28,10 @@ type ToolServer struct {
 func ReadTool[IN any](ts *ToolServer, name, desc string, fn func(context.Context, IN) (map[string]any, error)) {
 	mcp.AddTool(ts.MCP, &mcp.Tool{Name: name, Description: desc},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in IN) (*mcp.CallToolResult, map[string]any, error) {
-			if err := ts.Meter.Meter(ctx, ts.Identity, name); err != nil {
-				return nil, nil, err
+			if ts.Meter != nil {
+				if err := ts.Meter.Meter(ctx, ts.Identity, name); err != nil {
+					return nil, nil, err
+				}
 			}
 			out, err := fn(ctx, in)
 			if err != nil {
@@ -48,8 +50,10 @@ func WriteTool[IN any](ts *ToolServer, name, desc string, fn func(context.Contex
 			if !ts.Identity.CanWrite() {
 				return nil, nil, Coded("write_scope_required")
 			}
-			if err := ts.Meter.Meter(ctx, ts.Identity, name); err != nil {
-				return nil, nil, err
+			if ts.Meter != nil {
+				if err := ts.Meter.Meter(ctx, ts.Identity, name); err != nil {
+					return nil, nil, err
+				}
 			}
 			out, err := fn(ctx, in)
 			if err != nil {

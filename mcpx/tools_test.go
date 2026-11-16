@@ -80,3 +80,44 @@ func TestMapperWiring(t *testing.T) {
 	ts.Mapper = TableMapper([]CodeEntry{{Code: "bad_thing", Sentinels: []error{sentinel}}}, nil)
 	require.Equal(t, "bad_thing", ts.Mapper.MapError(sentinel, "create_thing").Error())
 }
+
+// TestNilMeterToolsCall confirms products that leave Meter unset (no quota hook)
+// still serve tools/call without panic — metering is a no-op when Meter is nil.
+func TestNilMeterToolsCall(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ts := &ToolServer{
+		MCP:      mcp.NewServer(&mcp.Implementation{Name: "test", Version: "1.0.0"}, nil),
+		Identity: Identity{Scope: ScopeWrite},
+		Meter:    nil,
+		Mapper:   TableMapper(nil, nil),
+	}
+	ReadTool(ts, "list_things", "List things", func(context.Context, sampleInput) (map[string]any, error) {
+		return map[string]any{"ok": true}, nil
+	})
+	WriteTool(ts, "create_thing", "Create a thing", func(context.Context, sampleInput) (map[string]any, error) {
+		return map[string]any{"ok": true}, nil
+	})
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "client", Version: "1.0.0"}, nil)
+	t1, t2 := mcp.NewInMemoryTransports()
+	_, err := ts.MCP.Connect(ctx, t1, nil)
+	require.NoError(t, err)
+	session, err := client.Connect(ctx, t2, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	got, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_things",
+		Arguments: map[string]any{"value": "x"},
+	})
+	require.NoError(t, err)
+	require.False(t, got.IsError)
+
+	got, err = session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "create_thing",
+		Arguments: map[string]any{"value": "y"},
+	})
+	require.NoError(t, err)
+	require.False(t, got.IsError)
+}
