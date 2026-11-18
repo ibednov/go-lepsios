@@ -53,16 +53,35 @@ type SearchRequest struct {
 	Offset      int      `json:"offset,omitempty"`
 	Sort        []string `json:"sort,omitempty"`
 	Filter      []string `json:"filter,omitempty"`
+	Facets      []string `json:"facets,omitempty"`
+	Distinct    string   `json:"distinct,omitempty"`
 	Attributes  []string `json:"attributesToRetrieve,omitempty"`
 	Highlight   []string `json:"attributesToHighlight,omitempty"`
 	ShowMatches bool     `json:"showMatchesPosition,omitempty"`
 }
 
 type SearchResult struct {
-	Hits               []map[string]any `json:"hits"`
-	Query              string           `json:"query"`
-	ProcessingTimeMS   int              `json:"processingTimeMs"`
-	EstimatedTotalHits int              `json:"estimatedTotalHits"`
+	Hits               []map[string]any              `json:"hits"`
+	Query              string                        `json:"query"`
+	ProcessingTimeMS   int                           `json:"processingTimeMs"`
+	EstimatedTotalHits int                           `json:"estimatedTotalHits"`
+	FacetDistribution  map[string]map[string]int     `json:"facetDistribution,omitempty"`
+	FacetStats         map[string]map[string]float64 `json:"facetStats,omitempty"`
+}
+
+// MultiSearchRequest runs several index searches in one request. IndexUID is
+// required by Meilisearch for each query.
+type MultiSearchRequest struct {
+	Queries []MultiSearchQuery `json:"queries"`
+}
+
+type MultiSearchQuery struct {
+	IndexUID string `json:"indexUid"`
+	SearchRequest
+}
+
+type MultiSearchResult struct {
+	Results []SearchResult `json:"results"`
 }
 
 type IndexSettings struct {
@@ -71,9 +90,28 @@ type IndexSettings struct {
 	FilterableAttributes []string            `json:"filterableAttributes,omitempty"`
 	SortableAttributes   []string            `json:"sortableAttributes,omitempty"`
 	RankingRules         []string            `json:"rankingRules,omitempty"`
-	StopWords            []string            `json:"stopWords,omitempty"`
-	Synonyms             map[string][]string `json:"synonyms,omitempty"`
+	StopWords            []string            `json:"stopWords"`
+	Synonyms             map[string][]string `json:"synonyms"`
 	TypoTolerance        *TypoTolerance      `json:"typoTolerance,omitempty"`
+	DistinctAttribute    string              `json:"distinctAttribute,omitempty"`
+	Faceting             *FacetingSettings   `json:"faceting,omitempty"`
+	Pagination           *PaginationSettings `json:"pagination,omitempty"`
+}
+
+type FacetingSettings struct {
+	MaxValuesPerFacet int `json:"maxValuesPerFacet,omitempty"`
+}
+
+type PaginationSettings struct {
+	MaxTotalHits int `json:"maxTotalHits,omitempty"`
+}
+
+type DeleteDocumentsRequest struct {
+	Filter []string `json:"filter"`
+}
+
+type DeleteDocumentIDsRequest struct {
+	IDs []int64 `json:"ids"`
 }
 
 type TypoTolerance struct {
@@ -113,6 +151,12 @@ func (c *Client) Search(ctx context.Context, index string, req SearchRequest) (S
 	return result, err
 }
 
+func (c *Client) MultiSearch(ctx context.Context, req MultiSearchRequest) (MultiSearchResult, error) {
+	var result MultiSearchResult
+	err := c.do(ctx, http.MethodPost, "/multi-search", req, &result)
+	return result, err
+}
+
 func (c *Client) AddDocuments(ctx context.Context, index, primaryKey string, documents any) (Task, error) {
 	path := "/indexes/" + url.PathEscape(index) + "/documents"
 	if primaryKey != "" {
@@ -135,9 +179,31 @@ func (c *Client) DeleteAllDocuments(ctx context.Context, index string) (Task, er
 	return task, err
 }
 
-func (c *Client) SwapIndexes(ctx context.Context, first, second string) (Task, error) {
+func (c *Client) DeleteDocumentsByFilter(ctx context.Context, index string, filters []string) (Task, error) {
 	var task Task
-	err := c.do(ctx, http.MethodPost, "/swap-indexes", []map[string]any{{"indexes": []string{first, second}}}, &task)
+	err := c.do(ctx, http.MethodPost, "/indexes/"+url.PathEscape(index)+"/documents/delete", DeleteDocumentsRequest{Filter: filters}, &task)
+	return task, err
+}
+
+func (c *Client) DeleteDocuments(ctx context.Context, index string, ids []int64) (Task, error) {
+	var task Task
+	err := c.do(ctx, http.MethodPost, "/indexes/"+url.PathEscape(index)+"/documents/delete", DeleteDocumentIDsRequest{IDs: ids}, &task)
+	return task, err
+}
+
+func (c *Client) SwapIndexes(ctx context.Context, first, second string) (Task, error) {
+	return c.SwapIndexPairs(ctx, [][2]string{{first, second}})
+}
+
+// SwapIndexPairs atomically swaps all supplied index pairs in one Meilisearch
+// task. This is useful when multiple related indexes must move together.
+func (c *Client) SwapIndexPairs(ctx context.Context, pairs [][2]string) (Task, error) {
+	var task Task
+	indexes := make([]map[string][]string, 0, len(pairs))
+	for _, pair := range pairs {
+		indexes = append(indexes, map[string][]string{"indexes": {pair[0], pair[1]}})
+	}
+	err := c.do(ctx, http.MethodPost, "/swap-indexes", indexes, &task)
 	return task, err
 }
 
