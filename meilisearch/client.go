@@ -90,12 +90,52 @@ type IndexSettings struct {
 	FilterableAttributes []string            `json:"filterableAttributes,omitempty"`
 	SortableAttributes   []string            `json:"sortableAttributes,omitempty"`
 	RankingRules         []string            `json:"rankingRules,omitempty"`
-	StopWords            []string            `json:"stopWords"`
-	Synonyms             map[string][]string `json:"synonyms"`
+	StopWords            []string            `json:"stopWords,omitempty"`
+	Synonyms             map[string][]string `json:"synonyms,omitempty"`
 	TypoTolerance        *TypoTolerance      `json:"typoTolerance,omitempty"`
 	DistinctAttribute    string              `json:"distinctAttribute,omitempty"`
 	Faceting             *FacetingSettings   `json:"faceting,omitempty"`
 	Pagination           *PaginationSettings `json:"pagination,omitempty"`
+}
+
+// MarshalJSON preserves the distinction between an omitted setting (nil) and
+// an explicit empty setting (non-nil but length zero). Meilisearch uses an
+// empty array/map to clear a setting, while other callers may leave it untouched.
+func (s IndexSettings) MarshalJSON() ([]byte, error) {
+	type settingsJSON struct {
+		SearchableAttributes []string             `json:"searchableAttributes,omitempty"`
+		DisplayedAttributes  []string             `json:"displayedAttributes,omitempty"`
+		FilterableAttributes []string             `json:"filterableAttributes,omitempty"`
+		SortableAttributes   []string             `json:"sortableAttributes,omitempty"`
+		RankingRules         []string             `json:"rankingRules,omitempty"`
+		StopWords            *[]string            `json:"stopWords,omitempty"`
+		Synonyms             *map[string][]string `json:"synonyms,omitempty"`
+		TypoTolerance        *TypoTolerance       `json:"typoTolerance,omitempty"`
+		DistinctAttribute    string               `json:"distinctAttribute,omitempty"`
+		Faceting             *FacetingSettings    `json:"faceting,omitempty"`
+		Pagination           *PaginationSettings  `json:"pagination,omitempty"`
+	}
+	var stopWords *[]string
+	if s.StopWords != nil {
+		stopWords = &s.StopWords
+	}
+	var synonyms *map[string][]string
+	if s.Synonyms != nil {
+		synonyms = &s.Synonyms
+	}
+	return json.Marshal(settingsJSON{
+		SearchableAttributes: s.SearchableAttributes,
+		DisplayedAttributes:  s.DisplayedAttributes,
+		FilterableAttributes: s.FilterableAttributes,
+		SortableAttributes:   s.SortableAttributes,
+		RankingRules:         s.RankingRules,
+		StopWords:            stopWords,
+		Synonyms:             synonyms,
+		TypoTolerance:        s.TypoTolerance,
+		DistinctAttribute:    s.DistinctAttribute,
+		Faceting:             s.Faceting,
+		Pagination:           s.Pagination,
+	})
 }
 
 type FacetingSettings struct {

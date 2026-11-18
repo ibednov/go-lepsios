@@ -47,6 +47,38 @@ func TestNewRejectsInvalidURL(t *testing.T) {
 	}
 }
 
+func TestIndexSettingsDistinguishOmittedAndEmptyValues(t *testing.T) {
+	untouched, err := json.Marshal(IndexSettings{SearchableAttributes: []string{"name"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var untouchedBody map[string]any
+	if err := json.Unmarshal(untouched, &untouchedBody); err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := untouchedBody["stopWords"]; exists {
+		t.Fatalf("nil stopWords should be omitted: %s", untouched)
+	}
+	if _, exists := untouchedBody["synonyms"]; exists {
+		t.Fatalf("nil synonyms should be omitted: %s", untouched)
+	}
+
+	clearValues, err := json.Marshal(IndexSettings{StopWords: []string{}, Synonyms: map[string][]string{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var clearBody map[string]any
+	if err := json.Unmarshal(clearValues, &clearBody); err != nil {
+		t.Fatal(err)
+	}
+	if words, ok := clearBody["stopWords"].([]any); !ok || len(words) != 0 {
+		t.Fatalf("empty stopWords should be serialized to clear: %s", clearValues)
+	}
+	if synonyms, ok := clearBody["synonyms"].(map[string]any); !ok || len(synonyms) != 0 {
+		t.Fatalf("empty synonyms should be serialized to clear: %s", clearValues)
+	}
+}
+
 func TestMultiSearchReturnsFacetData(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/multi-search" || r.Method != http.MethodPost {
