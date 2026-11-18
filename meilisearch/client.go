@@ -51,6 +51,7 @@ type SearchRequest struct {
 	Q           string   `json:"q"`
 	Limit       int      `json:"limit,omitempty"`
 	Offset      int      `json:"offset,omitempty"`
+	Sort        []string `json:"sort,omitempty"`
 	Filter      []string `json:"filter,omitempty"`
 	Attributes  []string `json:"attributesToRetrieve,omitempty"`
 	Highlight   []string `json:"attributesToHighlight,omitempty"`
@@ -69,6 +70,7 @@ type IndexSettings struct {
 	DisplayedAttributes  []string            `json:"displayedAttributes,omitempty"`
 	FilterableAttributes []string            `json:"filterableAttributes,omitempty"`
 	SortableAttributes   []string            `json:"sortableAttributes,omitempty"`
+	RankingRules         []string            `json:"rankingRules,omitempty"`
 	StopWords            []string            `json:"stopWords,omitempty"`
 	Synonyms             map[string][]string `json:"synonyms,omitempty"`
 	TypoTolerance        *TypoTolerance      `json:"typoTolerance,omitempty"`
@@ -82,11 +84,27 @@ type TypoTolerance struct {
 }
 
 type Task struct {
+	UID        int64  `json:"uid"`
 	TaskUID    int64  `json:"taskUid"`
 	IndexUID   string `json:"indexUid"`
 	Status     string `json:"status"`
 	Type       string `json:"type"`
-	EnqueuedAt string `json:" enqueuedAt"`
+	EnqueuedAt string `json:"enqueuedAt"`
+	Error      *struct {
+		Message string `json:"message"`
+	} `json:"error,omitempty"`
+}
+
+type HTTPError struct{ StatusCode int }
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("meilisearch request returned HTTP %d", e.StatusCode)
+}
+
+func (c *Client) CreateIndex(ctx context.Context, uid, primaryKey string) (Task, error) {
+	var task Task
+	err := c.do(ctx, http.MethodPost, "/indexes", map[string]string{"uid": uid, "primaryKey": primaryKey}, &task)
+	return task, err
 }
 
 func (c *Client) Search(ctx context.Context, index string, req SearchRequest) (SearchResult, error) {
@@ -109,6 +127,43 @@ func (c *Client) UpdateSettings(ctx context.Context, index string, settings Inde
 	var task Task
 	err := c.do(ctx, http.MethodPatch, "/indexes/"+url.PathEscape(index)+"/settings", settings, &task)
 	return task, err
+}
+
+func (c *Client) DeleteAllDocuments(ctx context.Context, index string) (Task, error) {
+	var task Task
+	err := c.do(ctx, http.MethodDelete, "/indexes/"+url.PathEscape(index)+"/documents", nil, &task)
+	return task, err
+}
+
+func (c *Client) SwapIndexes(ctx context.Context, first, second string) (Task, error) {
+	var task Task
+	err := c.do(ctx, http.MethodPost, "/swap-indexes", []map[string]any{{"indexes": []string{first, second}}}, &task)
+	return task, err
+}
+
+func (c *Client) WaitForTask(ctx context.Context, taskUID int64) error {
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		var task Task
+		if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/tasks/%d", taskUID), nil, &task); err != nil {
+			return err
+		}
+		switch task.Status {
+		case "succeeded":
+			return nil
+		case "failed", "canceled":
+			if task.Error != nil {
+				return fmt.Errorf("meilisearch task %d %s: %s", taskUID, task.Status, task.Error.Message)
+			}
+			return fmt.Errorf("meilisearch task %d %s", taskUID, task.Status)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func (c *Client) Health(ctx context.Context) error {
@@ -141,7 +196,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("meilisearch request returned HTTP %d", resp.StatusCode)
+		return &HTTPError{StatusCode: resp.StatusCode}
 	}
 	if out != nil {
 		if err := json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(out); err != nil {
