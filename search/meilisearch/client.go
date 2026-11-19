@@ -240,7 +240,7 @@ func (c *Client) DeleteDocumentsByFilter(ctx context.Context, index string, filt
 
 func (c *Client) DeleteDocuments(ctx context.Context, index string, ids []int64) (Task, error) {
 	var task Task
-	err := c.do(ctx, http.MethodPost, "/indexes/"+url.PathEscape(index)+"/documents/delete", DeleteDocumentIDsRequest{IDs: ids}, &task)
+	err := c.do(ctx, http.MethodPost, "/indexes/"+url.PathEscape(index)+"/documents/delete-batch", ids, &task)
 	return task, err
 }
 
