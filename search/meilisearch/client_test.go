@@ -3,6 +3,7 @@ package meilisearch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -41,6 +42,49 @@ func TestSearchSendsTenantKeyAndFilter(t *testing.T) {
 	}
 	if len(result.Hits) != 1 || result.ProcessingTimeMS != 2 {
 		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestIndexStatsReadsMetadataWithConfiguredKey(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/indexes/catalog/stats" {
+			t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer tenant-test-key" {
+			t.Fatalf("authorization = %q", got)
+		}
+		_, _ = w.Write([]byte(`{"numberOfDocuments":42,"isIndexing":true,"fieldDistribution":{"name":42}}`))
+	}))
+	defer server.Close()
+	client, err := New(Config{URL: server.URL, APIKey: "tenant-test-key"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, ok := client.Index("catalog").(searchapi.IndexStatsReader)
+	if !ok {
+		t.Fatal("Meilisearch index does not expose IndexStatsReader")
+	}
+	stats, err := reader.Stats(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.NumberOfDocuments != 42 || !stats.IsIndexing || stats.FieldDistribution["name"] != 42 {
+		t.Fatalf("stats = %+v", stats)
+	}
+}
+
+func TestIndexStatsReturnsHTTPErrorForMissingIndex(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { http.NotFound(w, nil) }))
+	defer server.Close()
+	client, err := New(Config{URL: server.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader := client.Index("missing").(searchapi.IndexStatsReader)
+	_, err = reader.Stats(context.Background())
+	var httpErr *searchapi.HTTPError
+	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusNotFound {
+		t.Fatalf("error = %v, want HTTP 404", err)
 	}
 }
 

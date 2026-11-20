@@ -25,3 +25,17 @@ type Index interface {
 	DeleteDocumentsByFilter(ctx context.Context, filters []string) (Task, error)
 	DeleteDocuments(ctx context.Context, ids []int64) (Task, error)
 }
+
+// IndexStatsReader is an optional capability supported by engines that expose
+// index operational metadata. Keeping it separate from Index preserves support
+// for providers that cannot report statistics.
+type IndexStatsReader interface {
+	Stats(ctx context.Context) (IndexStats, error)
+}
+
+// IndexStats contains vendor-neutral index counters and state.
+type IndexStats struct {
+	NumberOfDocuments int64          `json:"numberOfDocuments"`
+	IsIndexing        bool           `json:"isIndexing"`
+	FieldDistribution map[string]int `json:"fieldDistribution,omitempty"`
+}

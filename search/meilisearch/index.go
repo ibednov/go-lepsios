@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 
 	searchapi "github.com/ibednov/go-lepsios/search"
 )
@@ -20,6 +22,12 @@ func (c *Client) Index(uid string) searchapi.Index {
 }
 
 func (i *index) UID() string { return i.uid }
+
+func (i *index) Stats(ctx context.Context) (searchapi.IndexStats, error) {
+	var stats searchapi.IndexStats
+	err := i.client.do(ctx, http.MethodGet, "/indexes/"+url.PathEscape(i.uid)+"/stats", nil, &stats)
+	return stats, err
+}
 
 func (i *index) Search(ctx context.Context, request searchapi.SearchRequest) (searchapi.SearchResult, error) {
 	var req SearchRequest
