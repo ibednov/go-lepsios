@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -264,11 +265,30 @@ func (c *Client) SwapIndexPairs(ctx context.Context, pairs [][2]string) (Task, e
 func (c *Client) WaitForTask(ctx context.Context, taskUID int64) error {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
+	var notFoundSince time.Time
 	for {
 		var task Task
 		if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/tasks/%d", taskUID), nil, &task); err != nil {
-			return err
+			var httpErr *HTTPError
+			if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusNotFound {
+				return err
+			}
+			// Meilisearch can accept a task and return its UID before the task
+			// becomes visible through GET /tasks/{uid}. Retry briefly for that
+			// submission/visibility race, while still failing unknown UIDs.
+			if notFoundSince.IsZero() {
+				notFoundSince = time.Now()
+			} else if time.Since(notFoundSince) >= 2*time.Second {
+				return err
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-ticker.C:
+				continue
+			}
 		}
+		notFoundSince = time.Time{}
 		switch task.Status {
 		case "succeeded":
 			return nil
