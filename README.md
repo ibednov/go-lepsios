@@ -30,6 +30,11 @@ Multi-module Go infrastructure library for Alepsios backend services.
 | `geoip` | `github.com/ibednov/go-lepsios/geoip` | Local MaxMind GeoLite2 country lookup for public IP addresses |
 | `meilisearch` | `github.com/ibednov/go-lepsios/meilisearch` | Product-neutral Meilisearch HTTP client for search, document upserts, index settings, and health |
 
+`search.Index.Search` and `search.Index.Suggest` accept `RequireAllTerms` to
+require every query term. The Meilisearch adapter maps it to
+`matchingStrategy: "all"`. The default remains unchanged for requests that do
+not set the option, including `MultiSearch`.
+
 Prefix rule: SaaS billing lives under `billing/*`. Future goods shop → `commerce/*` (never a bare `catalog`).
 
 ## Local development

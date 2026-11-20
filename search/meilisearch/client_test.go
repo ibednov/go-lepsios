@@ -45,6 +45,54 @@ func TestSearchSendsTenantKeyAndFilter(t *testing.T) {
 	}
 }
 
+func TestSuggestRequireAllTermsUsesMeilisearchMatchingStrategy(t *testing.T) {
+	var requests []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/indexes/tea/search" || r.Method != http.MethodPost {
+			t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		requests = append(requests, body)
+		_, _ = w.Write([]byte(`{"hits":[],"query":"red tea","processingTimeMs":1,"estimatedTotalHits":0}`))
+	}))
+	defer server.Close()
+	client, err := New(Config{URL: server.URL, Client: server.Client()})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := client.Index("tea").Suggest(context.Background(), searchapi.SuggestRequest{Q: "red tea", RequireAllTerms: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Index("tea").Suggest(context.Background(), searchapi.SuggestRequest{Q: "red tea"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Index("tea").Search(context.Background(), searchapi.SearchRequest{Q: "red tea"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Index("tea").Search(context.Background(), searchapi.SearchRequest{Q: "red tea", RequireAllTerms: true}); err != nil {
+		t.Fatal(err)
+	}
+	if len(requests) != 4 {
+		t.Fatalf("got %d requests", len(requests))
+	}
+	if got := requests[0]["matchingStrategy"]; got != "all" {
+		t.Fatalf("strict suggest matchingStrategy = %#v, want all", got)
+	}
+	if _, exists := requests[1]["matchingStrategy"]; exists {
+		t.Fatalf("default suggest unexpectedly set matchingStrategy: %#v", requests[1])
+	}
+	if _, exists := requests[2]["matchingStrategy"]; exists {
+		t.Fatalf("direct search unexpectedly set matchingStrategy: %#v", requests[2])
+	}
+	if got := requests[3]["matchingStrategy"]; got != "all" {
+		t.Fatalf("strict search matchingStrategy = %#v, want all", got)
+	}
+}
+
 func TestIndexStatsReadsMetadataWithConfiguredKey(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || r.URL.Path != "/indexes/catalog/stats" {
@@ -131,11 +179,20 @@ func TestMultiSearchReturnsFacetData(t *testing.T) {
 		if r.URL.Path != "/multi-search" || r.Method != http.MethodPost {
 			t.Fatalf("request = %s %s", r.Method, r.URL.Path)
 		}
-		var body MultiSearchRequest
+		var body map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Fatal(err)
 		}
-		if len(body.Queries) != 1 || body.Queries[0].IndexUID != "catalog" || len(body.Queries[0].Facets) != 1 || body.Queries[0].Facets[0] != "attributes.country" {
+		queries, ok := body["queries"].([]any)
+		if !ok || len(queries) != 1 {
+			t.Fatalf("request body = %+v", body)
+		}
+		query, ok := queries[0].(map[string]any)
+		if !ok || query["indexUid"] != "catalog" || query["matchingStrategy"] != nil {
+			t.Fatalf("multi-search query should retain default matching strategy: %+v", query)
+		}
+		facets, ok := query["facets"].([]any)
+		if !ok || len(facets) != 1 || facets[0] != "attributes.country" {
 			t.Fatalf("request body = %+v", body)
 		}
 		_, _ = w.Write([]byte(`{"results":[{"hits":[],"facetDistribution":{"attributes.country":{"cn":3}},"facetStats":{"range_attributes.weight":{"min":1,"max":4}}}]}`))

@@ -34,6 +34,9 @@ func (i *index) Search(ctx context.Context, request searchapi.SearchRequest) (se
 	if err := convertJSON(request, &req); err != nil {
 		return searchapi.SearchResult{}, err
 	}
+	if request.RequireAllTerms {
+		req.MatchingStrategy = "all"
+	}
 	result, err := i.client.Search(ctx, i.uid, req)
 	if err != nil {
 		return searchapi.SearchResult{}, err
@@ -48,6 +51,9 @@ func (i *index) Search(ctx context.Context, request searchapi.SearchRequest) (se
 func (i *index) Suggest(ctx context.Context, request searchapi.SuggestRequest) (searchapi.SearchResult, error) {
 	req := SearchRequest{Q: request.Q, Limit: request.Limit, Filter: request.Filter,
 		AttributesToSearchOn: request.SearchOn, Attributes: request.Attributes, Highlight: request.Highlight}
+	if request.RequireAllTerms {
+		req.MatchingStrategy = "all"
+	}
 	result, err := i.client.Search(ctx, i.uid, req)
 	if err != nil {
 		return searchapi.SearchResult{}, err

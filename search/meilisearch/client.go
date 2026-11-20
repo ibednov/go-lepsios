@@ -83,6 +83,7 @@ type SearchRequest struct {
 	AttributesToSearchOn []string `json:"attributesToSearchOn,omitempty"`
 	Highlight            []string `json:"attributesToHighlight,omitempty"`
 	ShowMatches          bool     `json:"showMatchesPosition,omitempty"`
+	MatchingStrategy     string   `json:"matchingStrategy,omitempty"`
 }
 
 type SuggestRequest = searchapi.SuggestRequest
