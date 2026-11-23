@@ -1,4 +1,4 @@
-**Tag:** `parser/v0.1.6` — recipes: emall, shopby, ozby, dns, vek21, steam, onliner, detmir (`html_jsonld` + `api_json`). Overlay: `recipe.Merge` / `ParseConfigs` / `LoadConfigsFile`. Native antibot: wildberries, ozon, taobao, ali1688.
+**Tag:** `parser/v0.1.7` — recipes: emall, shopby, ozby, dns, vek21, steam, onliner, detmir (`html_jsonld` + `api_json`). Overlay: `recipe.Merge` / `ParseConfigs` / `LoadConfigsFile`. Native antibot: wildberries, ozon, taobao, ali1688.
 
 # parser
 

@@ -69,16 +69,22 @@ func (s *RecipeStrategy) CanHandle(host string) bool {
 }
 
 func (s *RecipeStrategy) Parse(ctx context.Context, normalizedURL string) (RawParseResult, error) {
-	card, err := s.ParseCard(ctx, normalizedURL)
+	if err := s.validateURL(normalizedURL); err != nil {
+		return RawParseResult{}, &SidecarError{Code: "invalid_input", Source: "parser." + s.cfg.Code + ".parse", Err: err}
+	}
+	// one extract for card+image (avoid ParseCard+ParseProductImageURL double fetch)
+	snap, err := s.extract(ctx, normalizedURL)
+	if err != nil {
+		return RawParseResult{}, &SidecarError{Code: "parse_failed", Source: "parser." + s.cfg.Code + ".parse", Err: err}
+	}
+	out, err := s.cardFromSnap(normalizedURL, snap)
 	if err != nil {
 		return RawParseResult{}, err
 	}
-	img, err := s.ParseProductImageURL(ctx, normalizedURL)
-	if err != nil {
-		img = nil
+	if img := strings.TrimSpace(snap.ImageURL); img != "" {
+		out.ImageURL = &img
 	}
-	card.ImageURL = img
-	return card, nil
+	return out, nil
 }
 
 func (s *RecipeStrategy) ParseCard(ctx context.Context, normalizedURL string) (RawParseResult, error) {
@@ -89,10 +95,14 @@ func (s *RecipeStrategy) ParseCard(ctx context.Context, normalizedURL string) (R
 	if err != nil {
 		return RawParseResult{}, &SidecarError{Code: "parse_failed", Source: "parser." + s.cfg.Code + ".parse_card", Err: err}
 	}
+	return s.cardFromSnap(normalizedURL, snap)
+}
+
+func (s *RecipeStrategy) cardFromSnap(pageURL string, snap recipe.Snapshot) (RawParseResult, error) {
 	if strings.TrimSpace(snap.Title) == "" {
 		return RawParseResult{}, &SidecarError{Code: "parse_failed", Source: "parser." + s.cfg.Code + ".parse_card", Err: fmt.Errorf("title not found")}
 	}
-	def := s.currencyForURL(normalizedURL, snap.Currency)
+	def := s.currencyForURL(pageURL, snap.Currency)
 	out := RawParseResult{
 		Title:    snap.Title,
 		Currency: currency.Normalize(def, currency.Code(s.cfg.DefaultCurrency)),
