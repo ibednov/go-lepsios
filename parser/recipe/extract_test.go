@@ -88,3 +88,11 @@ func TestBuiltinValid(t *testing.T) {
 		}
 	}
 }
+
+func TestBuiltinPathRegexCompiles(t *testing.T) {
+	for _, c := range Builtin() {
+		if err := c.Validate(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

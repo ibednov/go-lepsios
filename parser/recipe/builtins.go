@@ -17,7 +17,8 @@ func Builtin() []Config {
 		{
 			Version: 1, Code: "shopby",
 			Hosts:           []string{"shop.by", "www.shop.by"},
-			PathRegex:       `^/(?!news|cart|order|search|account|login)[^/]+/[^/]+/?$`,
+			PathRegex:       `^/([^/]+)/[^/]+/?$`,
+			RejectPathGroup1: []string{"news", "cart", "order", "search", "account", "login"},
 			DefaultCurrency: "BYN",
 			Title:           []string{"jsonld_product_name", "og_title"},
 			Price:           []string{"jsonld_aggregate_low_price", "jsonld_offer_price"},

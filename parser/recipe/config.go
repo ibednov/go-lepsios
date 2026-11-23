@@ -3,6 +3,7 @@ package recipe
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -59,6 +60,11 @@ func (c Config) Validate() error {
 	for _, h := range c.Hosts {
 		if strings.TrimSpace(h) == "" {
 			return fmt.Errorf("recipe %q: empty host", c.Code)
+		}
+	}
+	if r := strings.TrimSpace(c.PathRegex); r != "" {
+		if _, err := regexp.Compile(r); err != nil {
+			return fmt.Errorf("recipe %q path_regex: %w", c.Code, err)
 		}
 	}
 	return nil
