@@ -14,6 +14,26 @@ var (
 	ogTitleAlt     = regexp.MustCompile(`(?is)<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']`)
 	ogImagePattern = regexp.MustCompile(`(?is)<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']`)
 	ogImageAlt     = regexp.MustCompile(`(?is)<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']`)
+
+	h1NamePattern = regexp.MustCompile(
+		`(?is)<h1[^>]*itemprop=["']name["'][^>]*>([\s\S]*?)</h1>`,
+	)
+	priceContentPattern = regexp.MustCompile(
+		`(?is)itemprop=["']price["']\s+content=["']([\d.]+)["']`,
+	)
+	priceContentAltPattern = regexp.MustCompile(
+		`(?is)content=["']([\d.]+)["'][^>]*itemprop=["']price["']`,
+	)
+	priceCurrencyPattern = regexp.MustCompile(
+		`(?is)itemprop=["']priceCurrency["']\s+content=["']([A-Z]{3})["']`,
+	)
+	microdataImagePattern = regexp.MustCompile(
+		`(?is)itemprop=["']image["'][\s\S]{0,500}?itemprop=["']contentUrl["']\s+(?:href|content)=["'](https?://[^"']+)["']`,
+	)
+	adProductPattern = regexp.MustCompile(
+		`window\.ad_product=\{id:"([^"]*)",vendor:"[^"]*",price:"([^"]*)"[^}]*name:"((?:\\.|[^"\\])*)"`,
+	)
+	tagStrip = regexp.MustCompile(`<[^>]+>`)
 )
 
 // Snapshot is a neutral product card (before host currency types).
@@ -25,8 +45,13 @@ type Snapshot struct {
 	HasPrice bool
 }
 
-// Extract applies cfg field pipelines to HTML.
+// Extract applies cfg field pipelines to HTML (no path product id).
 func Extract(htmlBody string, cfg Config) Snapshot {
+	return ExtractPage(htmlBody, cfg, "")
+}
+
+// ExtractPage is Extract plus optional pathID for embedded_*_by_id extractors.
+func ExtractPage(htmlBody string, cfg Config, pathID string) Snapshot {
 	cfg = cfg.withDefaults()
 	products := collectJSONLDProducts(htmlBody)
 	var out Snapshot
@@ -44,7 +69,19 @@ func Extract(htmlBody string, cfg Config) Snapshot {
 				}
 			}
 		case "og_title":
-			out.Title = firstMeta(htmlBody, ogTitlePattern, ogTitleAlt)
+			out.Title = stripTitleSuffixes(firstMeta(htmlBody, ogTitlePattern, ogTitleAlt), cfg.TitleStripSuffixes)
+		case "microdata_name":
+			out.Title = extractH1Name(htmlBody)
+		case "embedded_name_by_id":
+			if pathID != "" {
+				if p, ok := extractEmbeddedByID(htmlBody, pathID); ok {
+					out.Title = p.Title
+				}
+			}
+		case "ad_product_name":
+			if p, ok := extractAdProduct(htmlBody); ok {
+				out.Title = p.Title
+			}
 		}
 	}
 
@@ -64,6 +101,32 @@ func Extract(htmlBody string, cfg Config) Snapshot {
 					break
 				}
 			}
+		case "microdata_price":
+			if p, ok := parseFloatMatch(htmlBody, priceContentPattern, priceContentAltPattern); ok {
+				out.Price = p
+				out.HasPrice = true
+			}
+		case "embedded_price_by_id":
+			if pathID != "" {
+				if p, ok := extractEmbeddedByID(htmlBody, pathID); ok && p.HasPrice {
+					out.Price = p.Price
+					out.HasPrice = true
+					if out.Currency == "" {
+						out.Currency = p.Currency
+					}
+					if out.Title == "" {
+						out.Title = p.Title
+					}
+				}
+			}
+		case "ad_product_price":
+			if p, ok := extractAdProduct(htmlBody); ok && p.HasPrice {
+				out.Price = p.Price
+				out.HasPrice = true
+				if out.Title == "" {
+					out.Title = p.Title
+				}
+			}
 		}
 	}
 
@@ -81,6 +144,10 @@ func Extract(htmlBody string, cfg Config) Snapshot {
 			}
 		case "og_image":
 			out.ImageURL = firstMeta(htmlBody, ogImagePattern, ogImageAlt)
+		case "microdata_image":
+			if m := microdataImagePattern.FindStringSubmatch(htmlBody); len(m) >= 2 {
+				out.ImageURL = strings.TrimSpace(m[1])
+			}
 		}
 	}
 
@@ -96,6 +163,10 @@ func Extract(htmlBody string, cfg Config) Snapshot {
 					break
 				}
 			}
+		case "microdata_currency":
+			if m := priceCurrencyPattern.FindStringSubmatch(htmlBody); len(m) >= 2 {
+				out.Currency = strings.TrimSpace(m[1])
+			}
 		case "default_currency":
 			out.Currency = cfg.DefaultCurrency
 		}
@@ -104,6 +175,97 @@ func Extract(htmlBody string, cfg Config) Snapshot {
 		out.Currency = cfg.DefaultCurrency
 	}
 	return out
+}
+
+func stripTitleSuffixes(title string, suffixes []string) string {
+	title = strings.TrimSpace(html.UnescapeString(title))
+	for _, suf := range suffixes {
+		if suf == "" {
+			continue
+		}
+		if idx := strings.Index(title, suf); idx > 0 {
+			return strings.TrimSpace(title[:idx])
+		}
+	}
+	return title
+}
+
+func extractH1Name(htmlBody string) string {
+	m := h1NamePattern.FindStringSubmatch(htmlBody)
+	if len(m) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(html.UnescapeString(tagStrip.ReplaceAllString(m[1], "")))
+}
+
+func parseFloatMatch(body string, patterns ...*regexp.Regexp) (float64, bool) {
+	for _, p := range patterns {
+		if m := p.FindStringSubmatch(body); len(m) >= 2 {
+			v, err := strconv.ParseFloat(strings.TrimSpace(m[1]), 64)
+			if err == nil && v > 0 {
+				return v, true
+			}
+		}
+	}
+	return 0, false
+}
+
+func extractEmbeddedByID(htmlBody, productID string) (Snapshot, bool) {
+	if productID == "" {
+		return Snapshot{}, false
+	}
+	// "name":"...","id":"<id>","price":N
+	pat := regexp.MustCompile(
+		`"name":"((?:\\.|[^"\\])*)","id":"` + regexp.QuoteMeta(productID) + `","price":([\d.]+)`,
+	)
+	if m := pat.FindStringSubmatch(htmlBody); len(m) >= 3 {
+		price, err := strconv.ParseFloat(strings.TrimSpace(m[2]), 64)
+		name := decodeJSString(m[1])
+		if err == nil && price > 0 && name != "" {
+			return Snapshot{Title: name, Price: price, Currency: "BYN", HasPrice: true}, true
+		}
+	}
+	// "id":"<id>" ... "price":N (within 240 chars)
+	pat2 := regexp.MustCompile(
+		`"id":"` + regexp.QuoteMeta(productID) + `"(?:(?!}).){0,240}?"price":([\d.]+)`,
+	)
+	if m := pat2.FindStringSubmatch(htmlBody); len(m) >= 2 {
+		price, err := strconv.ParseFloat(strings.TrimSpace(m[1]), 64)
+		if err == nil && price > 0 {
+			return Snapshot{Price: price, Currency: "BYN", HasPrice: true}, true
+		}
+	}
+	return Snapshot{}, false
+}
+
+func extractAdProduct(htmlBody string) (Snapshot, bool) {
+	m := adProductPattern.FindStringSubmatch(htmlBody)
+	if len(m) < 4 {
+		return Snapshot{}, false
+	}
+	if m[1] == "" || m[1] == "undefined" || m[2] == "" || m[2] == "undefined" {
+		return Snapshot{}, false
+	}
+	price, err := strconv.ParseFloat(m[2], 64)
+	name := decodeJSString(m[3])
+	if err != nil || price <= 0 || name == "" || name == "undefined" {
+		return Snapshot{}, false
+	}
+	return Snapshot{Title: name, Price: price, Currency: "BYN", HasPrice: true}, true
+}
+
+func decodeJSString(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	var decoded string
+	if err := json.Unmarshal([]byte(`"`+raw+`"`), &decoded); err == nil {
+		return decoded
+	}
+	replaced := strings.ReplaceAll(raw, `\x22`, `"`)
+	replaced = strings.ReplaceAll(replaced, `\"`, `"`)
+	return html.UnescapeString(replaced)
 }
 
 func firstMeta(body string, patterns ...*regexp.Regexp) string {

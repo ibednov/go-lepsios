@@ -90,7 +90,7 @@ func (s *RecipeStrategy) ParseCard(ctx context.Context, normalizedURL string) (R
 	if err != nil {
 		return RawParseResult{}, &SidecarError{Code: "parse_failed", Source: "parser." + s.cfg.Code + ".parse_card", Err: err}
 	}
-	snap := recipe.Extract(body, s.cfg)
+	snap := recipe.ExtractPage(body, s.cfg, s.pathProductID(normalizedURL))
 	if strings.TrimSpace(snap.Title) == "" {
 		return RawParseResult{}, &SidecarError{Code: "parse_failed", Source: "parser." + s.cfg.Code + ".parse_card", Err: fmt.Errorf("title not found")}
 	}
@@ -122,7 +122,7 @@ func (s *RecipeStrategy) ParseProductImageURL(ctx context.Context, normalizedURL
 	if err != nil {
 		return nil, &SidecarError{Code: "parse_failed", Source: "parser." + s.cfg.Code + ".parse_product_image", Err: err}
 	}
-	snap := recipe.Extract(body, s.cfg)
+	snap := recipe.ExtractPage(body, s.cfg, s.pathProductID(normalizedURL))
 	if snap.ImageURL == "" {
 		return nil, nil
 	}
@@ -138,16 +138,42 @@ func (s *RecipeStrategy) validateURL(raw string) error {
 	if !s.CanHandle(u.Hostname()) {
 		return fmt.Errorf("host not in recipe %s", s.cfg.Code)
 	}
-	if s.path != nil && !s.path.MatchString(u.Path) {
-		return fmt.Errorf("path %q does not match path_regex", u.Path)
+	if s.path != nil {
+		m := s.path.FindStringSubmatch(u.Path)
+		if m == nil {
+			return fmt.Errorf("path %q does not match path_regex", u.Path)
+		}
+		if len(s.cfg.RejectPathGroup1) > 0 && len(m) > 1 {
+			g1 := strings.ToLower(m[1])
+			for _, bad := range s.cfg.RejectPathGroup1 {
+				if g1 == strings.ToLower(strings.TrimSpace(bad)) {
+					return fmt.Errorf("path group1 %q rejected", m[1])
+				}
+			}
+		}
 	}
 	return nil
+}
+
+func (s *RecipeStrategy) pathProductID(raw string) string {
+	if s.path == nil || s.cfg.PathIDGroup <= 0 {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	m := s.path.FindStringSubmatch(u.Path)
+	if m == nil || s.cfg.PathIDGroup >= len(m) {
+		return ""
+	}
+	return m[s.cfg.PathIDGroup]
 }
 
 func (s *RecipeStrategy) fetch(ctx context.Context, pageURL string) (string, error) {
 	ua := s.cfg.UserAgent
 	if ua == "" {
-		ua = "Mozilla/5.0 (compatible; ProductParser/1.0)"
+		ua = "Mozilla/5.0 (compatible; Parser/1.0)"
 	}
 	var last error
 	for attempt := 0; attempt < 3; attempt++ {

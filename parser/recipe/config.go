@@ -6,26 +6,32 @@ import (
 	"strings"
 )
 
-// Kind is the config-driven HTML/JSON-LD product page parser.
+// Kind is the config-driven HTML product page parser (jsonld / og / microdata / embedded).
 const Kind = "html_jsonld"
 
 // Config describes one shop (or host group) without a Go package.
-// Host wires these from DB/CRM/files and RegisterRecipes on the parser Registry.
+// Host wires these via RecipeStrategies (Builtin or CRM JSON later).
 type Config struct {
 	Version         int      `json:"version"`
 	Code            string   `json:"code"` // strategy name for gates/logs
 	Hosts           []string `json:"hosts"`
 	PathRegex       string   `json:"path_regex,omitempty"`
-	UserAgent       string   `json:"user_agent,omitempty"`
-	DefaultCurrency string   `json:"default_currency,omitempty"`
+	// PathIDGroup — 1-based capture group used by embedded_*_by_id extractors (0 = off).
+	PathIDGroup int `json:"path_id_group,omitempty"`
+	// RejectPathGroup1 — if PathRegex group 1 is in this list → invalid_input.
+	RejectPathGroup1 []string `json:"reject_path_group1,omitempty"`
+	// TitleStripSuffixes — strip first matching suffix from og_title (e.g. " - на OZ.by").
+	TitleStripSuffixes []string `json:"title_strip_suffixes,omitempty"`
+	UserAgent          string   `json:"user_agent,omitempty"`
+	DefaultCurrency    string   `json:"default_currency,omitempty"`
 	// Title/Price/Image/Currency: ordered extractor ids (first hit wins).
-	// Known: jsonld_product_name, og_title, jsonld_offer_price, jsonld_aggregate_low_price,
-	// jsonld_product_image, og_image, jsonld_price_currency, default_currency
+	// jsonld_*: Product ld+json; og_*; microdata_*; embedded_*_by_id (needs PathIDGroup);
+	// ad_product_*; default_currency
 	Title    []string `json:"title,omitempty"`
 	Price    []string `json:"price,omitempty"`
 	Image    []string `json:"image,omitempty"`
 	Currency []string `json:"currency,omitempty"`
-	// NoPrice: "error" (default) → SidecarError no_price; "allow" → nil price OK for card
+	// NoPrice: "error" (default) → no_price; "allow" → nil price OK
 	NoPrice string `json:"no_price,omitempty"`
 }
 
@@ -79,7 +85,7 @@ func (c Config) withDefaults() Config {
 		out.DefaultCurrency = "BYN"
 	}
 	if out.UserAgent == "" {
-		out.UserAgent = "Mozilla/5.0 (compatible; ProductParser/1.0)"
+		out.UserAgent = "Mozilla/5.0 (compatible; Parser/1.0)"
 	}
 	if out.NoPrice == "" {
 		out.NoPrice = "error"

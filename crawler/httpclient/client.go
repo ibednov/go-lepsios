@@ -112,7 +112,7 @@ func New(cfg Config) *Client {
 	}
 	ua := cfg.UserAgent
 	if ua == "" {
-		ua = "ShopParserBot/0.1 (+https://github.com/ibednov/go-lepsios)"
+		ua = "CrawlerBot/0.1 (+https://github.com/ibednov/go-lepsios)"
 	}
 	return &Client{
 		http: &http.Client{Timeout: timeout, CheckRedirect: func(req *http.Request, via []*http.Request) error {
