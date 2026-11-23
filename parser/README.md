@@ -1,3 +1,5 @@
+**Tag:** `parser/v0.1.4` — recipes: emall, shopby, ozby, dns, vek21, steam, onliner, detmir (`html_jsonld` + `api_json`). Native: wildberries, ozon, taobao, ali1688.
+
 # parser
 
 Universal **single-URL** product parsers (title / price / image).
