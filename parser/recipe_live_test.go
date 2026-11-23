@@ -132,3 +132,33 @@ func TestLiveVek21Product(t *testing.T) {
 	}
 	t.Logf("vek21 title=%q price=%v", card.Title, card.Price)
 }
+
+func TestLiveEmallProduct(t *testing.T) {
+	if testing.Short() {
+		t.Skip("short")
+	}
+	if os.Getenv("PARSER_LIVE") == "0" {
+		t.Skip("PARSER_LIVE=0")
+	}
+	var cfg recipe.Config
+	for _, c := range recipe.Builtin() {
+		if c.Code == "emall" {
+			cfg = c
+			break
+		}
+	}
+	s, err := NewRecipeStrategy(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	card, err := s.ParseCard(ctx, "https://emall.by/product/2169965")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if card.Title == "" {
+		t.Fatal("empty title")
+	}
+	t.Logf("emall title=%q price=%v cur=%s", card.Title, card.Price, card.Currency)
+}
