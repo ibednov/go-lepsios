@@ -1,0 +1,11 @@
+{
+  "id": 71,
+  "name": "Green tea 100g",
+  "permalink": "https://shop.example/product/green-tea/",
+  "type": "simple",
+  "sku": "green-100",
+  "prices": {"price": "1250", "currency_code": "BYN", "currency_minor_unit": 2},
+  "categories": [{"id": 4, "name": "Tea", "slug": "tea"}],
+  "is_in_stock": true,
+  "attributes": [{"name": "Вес", "taxonomy": "pa_ves", "terms": [{"name": "100г", "slug": "100g"}]}]
+}

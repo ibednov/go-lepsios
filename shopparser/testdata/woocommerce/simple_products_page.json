@@ -1,0 +1,47 @@
+[
+  {
+    "id": 71,
+    "name": "Green tea 100g",
+    "slug": "green-tea",
+    "permalink": "https://shop.example/product/green-tea/",
+    "type": "simple",
+    "sku": "green-100",
+    "prices": {"price": "1250", "currency_code": "BYN", "currency_minor_unit": 2},
+    "categories": [{"id": 4, "name": "Tea", "slug": "tea"}],
+    "is_in_stock": true,
+    "attributes": [{"name": "Вес", "taxonomy": "pa_ves", "terms": [{"name": "100г", "slug": "100g"}]}]
+  },
+  {
+    "id": 72,
+    "name": "Glass teapot",
+    "slug": "glass-teapot",
+    "permalink": "https://shop.example/product/glass-teapot/",
+    "type": "simple",
+    "sku": "pot-72",
+    "prices": {"price": "3000", "currency_code": "BYN", "currency_minor_unit": 2},
+    "categories": [{"id": 5, "name": "Посуда", "slug": "posuda"}],
+    "is_in_stock": true
+  },
+  {
+    "id": 73,
+    "name": "Herbal infusion",
+    "slug": "herbal-infusion",
+    "permalink": "https://shop.example/product/herbal-infusion/",
+    "type": "simple",
+    "sku": "herbal-73",
+    "prices": {"price": "1500", "currency_code": "BYN", "currency_minor_unit": 2},
+    "categories": [{"id": 12, "name": "Herbs", "slug": "herbs"}],
+    "is_in_stock": true
+  },
+  {
+    "id": 74,
+    "name": "Coffee beans",
+    "slug": "coffee-beans",
+    "permalink": "https://shop.example/product/coffee-beans/",
+    "type": "simple",
+    "sku": "coffee-74",
+    "prices": {"price": "2000", "currency_code": "BYN", "currency_minor_unit": 2},
+    "categories": [{"id": 6, "name": "Coffee", "slug": "coffee"}],
+    "is_in_stock": true
+  }
+]

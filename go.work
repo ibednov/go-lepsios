@@ -1,4 +1,4 @@
-go 1.25.0
+go 1.26.0
 
 use (
 	./ai
@@ -35,6 +35,7 @@ use (
 	./rate_limit
 	./redis
 	./search
+	./shopparser
 	./telegram
 	./ws
 )
