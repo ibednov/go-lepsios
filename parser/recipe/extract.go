@@ -72,6 +72,10 @@ func ExtractPage(htmlBody string, cfg Config, pathID string) Snapshot {
 			out.Title = stripTitleSuffixes(firstMeta(htmlBody, ogTitlePattern, ogTitleAlt), cfg.TitleStripSuffixes)
 		case "microdata_name":
 			out.Title = extractH1Name(htmlBody)
+		case "h1_text":
+			out.Title = extractPlainH1(htmlBody)
+		case "title_regex":
+			out.Title = firstRegexCapture(htmlBody, cfg.TitleRegexes)
 		case "embedded_name_by_id":
 			if pathID != "" {
 				if p, ok := extractEmbeddedByID(htmlBody, pathID); ok {
@@ -103,6 +107,11 @@ func ExtractPage(htmlBody string, cfg Config, pathID string) Snapshot {
 			}
 		case "microdata_price":
 			if p, ok := parseFloatMatch(htmlBody, priceContentPattern, priceContentAltPattern); ok {
+				out.Price = p
+				out.HasPrice = true
+			}
+		case "price_regex":
+			if p, ok := firstRegexPrice(htmlBody, cfg.PriceRegexes); ok {
 				out.Price = p
 				out.HasPrice = true
 			}
@@ -144,6 +153,8 @@ func ExtractPage(htmlBody string, cfg Config, pathID string) Snapshot {
 			}
 		case "og_image":
 			out.ImageURL = firstMeta(htmlBody, ogImagePattern, ogImageAlt)
+		case "image_regex":
+			out.ImageURL = firstRegexCapture(htmlBody, cfg.ImageRegexes)
 		case "microdata_image":
 			if m := microdataImagePattern.FindStringSubmatch(htmlBody); len(m) >= 2 {
 				out.ImageURL = strings.TrimSpace(m[1])
@@ -173,6 +184,9 @@ func ExtractPage(htmlBody string, cfg Config, pathID string) Snapshot {
 	}
 	if out.Currency == "" {
 		out.Currency = cfg.DefaultCurrency
+	}
+	if out.ImageURL != "" && cfg.ImageFitUpscale != "" {
+		out.ImageURL = upscaleFitURL(out.ImageURL, cfg.ImageFitUpscale)
 	}
 	return out
 }
@@ -267,6 +281,69 @@ func decodeJSString(raw string) string {
 	replaced = strings.ReplaceAll(replaced, `\"`, `"`)
 	return html.UnescapeString(replaced)
 }
+
+
+func extractPlainH1(htmlBody string) string {
+	m := regexp.MustCompile(`(?is)<h1[^>]*>([\s\S]*?)</h1>`).FindStringSubmatch(htmlBody)
+	if len(m) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(html.UnescapeString(tagStrip.ReplaceAllString(m[1], "")))
+}
+
+func firstRegexCapture(body string, patterns []string) string {
+	for _, raw := range patterns {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		re, err := regexp.Compile(raw)
+		if err != nil {
+			continue
+		}
+		if m := re.FindStringSubmatch(body); len(m) >= 2 {
+			return strings.TrimSpace(html.UnescapeString(tagStrip.ReplaceAllString(m[1], "")))
+		}
+	}
+	return ""
+}
+
+func firstRegexPrice(body string, patterns []string) (float64, bool) {
+	for _, raw := range patterns {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		re, err := regexp.Compile(raw)
+		if err != nil {
+			continue
+		}
+		if m := re.FindStringSubmatch(body); len(m) >= 2 {
+			s := strings.ReplaceAll(strings.TrimSpace(m[1]), " ", "")
+			s = strings.ReplaceAll(s, ",", ".")
+			v, err := strconv.ParseFloat(s, 64)
+			if err == nil && v > 0 {
+				return v, true
+			}
+		}
+	}
+	return 0, false
+}
+
+func upscaleFitURL(imageURL, to string) string {
+	to = strings.Trim(strings.TrimSpace(to), "/")
+	if to == "" {
+		return imageURL
+	}
+	for _, size := range []string{"45/45", "24/24", "155/155", "200/200", "300/300"} {
+		from := "/fit/" + size + "/"
+		if strings.Contains(imageURL, from) {
+			return strings.Replace(imageURL, from, "/fit/"+to+"/", 1)
+		}
+	}
+	return imageURL
+}
+
 
 func firstMeta(body string, patterns ...*regexp.Regexp) string {
 	for _, p := range patterns {

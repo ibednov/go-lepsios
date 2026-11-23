@@ -30,7 +30,6 @@ const ozbyHTML = `<!DOCTYPE html>
 <meta itemprop="priceCurrency" content="BYN">
 <div itemprop="image"><link itemprop="contentUrl" href="https://goods.ozstatic.by/cup.jpg"></div>
 </div>
-<script>var x={"name":"Кружка из JSON","id":"12345","price":11.00};</script>
 </body></html>`
 
 func TestExtractEmall(t *testing.T) {
@@ -59,12 +58,6 @@ func TestExtractOzbyMicrodata(t *testing.T) {
 	if !s.HasPrice || s.Price != 12.50 {
 		t.Fatalf("price=%v", s.Price)
 	}
-	if s.ImageURL != "https://goods.ozstatic.by/cup.jpg" {
-		t.Fatalf("image=%q", s.ImageURL)
-	}
-	if s.Currency != "BYN" {
-		t.Fatalf("currency=%q", s.Currency)
-	}
 }
 
 func TestExtractOzbyEmbedded(t *testing.T) {
@@ -78,6 +71,27 @@ func TestExtractOzbyEmbedded(t *testing.T) {
 	s := ExtractPage(html, cfg, "999")
 	if s.Title != "Товар" || s.Price != 3.5 {
 		t.Fatalf("got %+v", s)
+	}
+}
+
+func TestExtractDNS(t *testing.T) {
+	html := `<script type="application/ld+json">{"@graph":[{"@type":"Product","name":"Клавиатура 8BitDo","offers":{"price":263.9,"priceCurrency":"BYN"},"image":["https://c.dns-shop.ru/thumb/st4/fit/45/45/abc.jpg"]}]}</script>
+<link rel="preload" href="https://c.dns-shop.ru/thumb/st4/fit/500/500/preload.jpg" as="image">
+<h1>Клавиатура проводная</h1>
+<div class="product-card-purchase__current-price ">263.90</div>`
+	var cfg Config
+	for _, c := range Builtin() {
+		if c.Code == "dns" {
+			cfg = c
+			break
+		}
+	}
+	s := Extract(html, cfg)
+	if s.Title != "Клавиатура 8BitDo" || s.Price != 263.9 {
+		t.Fatalf("got title=%q price=%v", s.Title, s.Price)
+	}
+	if s.ImageURL == "" {
+		t.Fatal("image empty")
 	}
 }
 

@@ -23,11 +23,21 @@ type Config struct {
 	RejectPathGroup1 []string `json:"reject_path_group1,omitempty"`
 	// TitleStripSuffixes — strip first matching suffix from og_title (e.g. " - на OZ.by").
 	TitleStripSuffixes []string `json:"title_strip_suffixes,omitempty"`
-	UserAgent          string   `json:"user_agent,omitempty"`
-	DefaultCurrency    string   `json:"default_currency,omitempty"`
+	// RejectPathContains — substring ban on path (e.g. "/opinions").
+	RejectPathContains []string `json:"reject_path_contains,omitempty"`
+	// Title/Price/ImageRegexes — first capture group; used by title_regex / price_regex / image_regex.
+	TitleRegexes []string `json:"title_regexes,omitempty"`
+	PriceRegexes []string `json:"price_regexes,omitempty"`
+	ImageRegexes []string `json:"image_regexes,omitempty"`
+	// ImageFitUpscale — rewrite /fit/N/N/ → /fit/{this}/ (e.g. "500/500").
+	ImageFitUpscale string `json:"image_fit_upscale,omitempty"`
+	// CurrencyPathPrefix — path prefix → currency before default (e.g. "/ru/"→"RUB").
+	CurrencyPathPrefix map[string]string `json:"currency_path_prefix,omitempty"`
+	AcceptLanguage     string            `json:"accept_language,omitempty"`
+	UserAgent          string            `json:"user_agent,omitempty"`
+	DefaultCurrency    string            `json:"default_currency,omitempty"`
 	// Title/Price/Image/Currency: ordered extractor ids (first hit wins).
-	// jsonld_*: Product ld+json; og_*; microdata_*; embedded_*_by_id (needs PathIDGroup);
-	// ad_product_*; default_currency
+	// + h1_text, title_regex, price_regex, image_regex
 	Title    []string `json:"title,omitempty"`
 	Price    []string `json:"price,omitempty"`
 	Image    []string `json:"image,omitempty"`
@@ -65,6 +75,16 @@ func (c Config) Validate() error {
 	if r := strings.TrimSpace(c.PathRegex); r != "" {
 		if _, err := regexp.Compile(r); err != nil {
 			return fmt.Errorf("recipe %q path_regex: %w", c.Code, err)
+		}
+	}
+	for _, list := range [][]string{c.TitleRegexes, c.PriceRegexes, c.ImageRegexes} {
+		for _, r := range list {
+			if strings.TrimSpace(r) == "" {
+				continue
+			}
+			if _, err := regexp.Compile(r); err != nil {
+				return fmt.Errorf("recipe %q custom regex: %w", c.Code, err)
+			}
 		}
 	}
 	return nil

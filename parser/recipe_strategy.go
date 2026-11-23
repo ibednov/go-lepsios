@@ -94,13 +94,10 @@ func (s *RecipeStrategy) ParseCard(ctx context.Context, normalizedURL string) (R
 	if strings.TrimSpace(snap.Title) == "" {
 		return RawParseResult{}, &SidecarError{Code: "parse_failed", Source: "parser." + s.cfg.Code + ".parse_card", Err: fmt.Errorf("title not found")}
 	}
-	def := s.cfg.DefaultCurrency
-	if def == "" {
-		def = "BYN"
-	}
+	def := s.currencyForURL(normalizedURL, snap.Currency)
 	out := RawParseResult{
 		Title:    snap.Title,
-		Currency: currency.Normalize(snap.Currency, currency.Code(def)),
+		Currency: currency.Normalize(def, currency.Code(s.cfg.DefaultCurrency)),
 	}
 	if snap.HasPrice && snap.Price > 0 {
 		p := snap.Price
@@ -138,6 +135,12 @@ func (s *RecipeStrategy) validateURL(raw string) error {
 	if !s.CanHandle(u.Hostname()) {
 		return fmt.Errorf("host not in recipe %s", s.cfg.Code)
 	}
+	pathLower := strings.ToLower(u.Path)
+	for _, bad := range s.cfg.RejectPathContains {
+		if bad != "" && strings.Contains(pathLower, strings.ToLower(bad)) {
+			return fmt.Errorf("path contains rejected %q", bad)
+		}
+	}
 	if s.path != nil {
 		m := s.path.FindStringSubmatch(u.Path)
 		if m == nil {
@@ -153,6 +156,47 @@ func (s *RecipeStrategy) validateURL(raw string) error {
 		}
 	}
 	return nil
+}
+
+func (s *RecipeStrategy) currencyForURL(pageURL, extracted string) string {
+	if c := strings.TrimSpace(extracted); c != "" {
+		if _, err := currency.Parse(c); err == nil {
+			return c
+		}
+	}
+	u, err := url.Parse(pageURL)
+	if err == nil {
+		path := strings.ToLower(u.Path)
+		// longer prefixes first — map iteration order unstable; sort by len
+		type kv struct{ k, v string }
+		var pairs []kv
+		for k, v := range s.cfg.CurrencyPathPrefix {
+			pairs = append(pairs, kv{k, v})
+		}
+		for i := 0; i < len(pairs); i++ {
+			for j := i + 1; j < len(pairs); j++ {
+				if len(pairs[j].k) > len(pairs[i].k) {
+					pairs[i], pairs[j] = pairs[j], pairs[i]
+				}
+			}
+		}
+		for _, p := range pairs {
+			if p.k != "" && strings.HasPrefix(path, strings.ToLower(p.k)) {
+				return p.v
+			}
+		}
+		host := strings.ToLower(u.Hostname())
+		if strings.HasSuffix(host, ".ru") {
+			return "RUB"
+		}
+		if strings.HasSuffix(host, ".kz") {
+			return "KZT"
+		}
+	}
+	if s.cfg.DefaultCurrency != "" {
+		return s.cfg.DefaultCurrency
+	}
+	return "BYN"
 }
 
 func (s *RecipeStrategy) pathProductID(raw string) string {
@@ -183,6 +227,9 @@ func (s *RecipeStrategy) fetch(ctx context.Context, pageURL string) (string, err
 		}
 		req.Header.Set("User-Agent", ua)
 		req.Header.Set("Accept", "text/html,application/xhtml+xml")
+		if al := strings.TrimSpace(s.cfg.AcceptLanguage); al != "" {
+			req.Header.Set("Accept-Language", al)
+		}
 		resp, err := s.client.Do(req)
 		if err != nil {
 			last = err
@@ -192,7 +239,7 @@ func (s *RecipeStrategy) fetch(ctx context.Context, pageURL string) (string, err
 			}
 			return "", err
 		}
-		b, readErr := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+		b, readErr := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 		resp.Body.Close()
 		if readErr != nil {
 			last = readErr
