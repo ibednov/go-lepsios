@@ -19,7 +19,7 @@ var wbHTTPClient = &http.Client{
 	Timeout: 8 * time.Second,
 }
 
-const wbHTTPUserAgent = "Mozilla/5.0 (compatible; WishimiParser/1.0)"
+const wbHTTPUserAgent = "Mozilla/5.0 (compatible; ProductParser/1.0)"
 
 // Шаблоны путей превью на basket (часть артикулов не кладёт файлы только в images/big).
 var basketImagePathPatterns = []string{
@@ -42,7 +42,7 @@ const basketHostMaxIndex = 65 // research 2026-10-26: live map ~65; nm>~960M nee
 const (
 	// Documented public Moscow default used by WB .ru catalog/search examples.
 	wbDestMoscow = "-1257786"
-	// Historical Wishimi .by dest (hardcoded with curr=byn since commit 9bac928).
+	// Historical .by dest (hardcoded with curr=byn since commit 9bac928).
 	wbDestBYPrimary = "-59199"
 	// Provisional .by failover when primary returns non-OK / unusable price.
 	// Observed as destinations[0] from user-geo-data with currency=BYN (2026-10-26);
