@@ -71,3 +71,33 @@ func TestLiveOnlinerProduct(t *testing.T) {
 	}
 	t.Logf("onliner title=%q price=%v", card.Title, card.Price)
 }
+
+func TestLiveDetmirProduct(t *testing.T) {
+	if testing.Short() {
+		t.Skip("short")
+	}
+	if os.Getenv("PARSER_LIVE") == "0" {
+		t.Skip("PARSER_LIVE=0")
+	}
+	var cfg recipe.Config
+	for _, c := range recipe.Builtin() {
+		if c.Code == "detmir" {
+			cfg = c
+			break
+		}
+	}
+	s, err := NewRecipeStrategy(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	card, err := s.ParseCard(ctx, "https://www.detmir.by/product/index/id/1001/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if card.Title == "" {
+		t.Fatal("empty title")
+	}
+	t.Logf("detmir title=%q price=%v cur=%s", card.Title, card.Price, card.Currency)
+}
