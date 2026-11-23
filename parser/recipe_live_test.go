@@ -101,3 +101,34 @@ func TestLiveDetmirProduct(t *testing.T) {
 	}
 	t.Logf("detmir title=%q price=%v cur=%s", card.Title, card.Price, card.Currency)
 }
+
+func TestLiveVek21Product(t *testing.T) {
+	if testing.Short() {
+		t.Skip("short")
+	}
+	if os.Getenv("PARSER_LIVE") == "0" {
+		t.Skip("PARSER_LIVE=0")
+	}
+	var cfg recipe.Config
+	for _, c := range recipe.Builtin() {
+		if c.Code == "vek21" {
+			cfg = c
+			break
+		}
+	}
+	s, err := NewRecipeStrategy(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	// popular catalog-ish URL; may 404 — log and soft-fail only if empty title path returns err
+	card, err := s.ParseCard(ctx, "https://www.21vek.by/mobile/iphone17256gb_apple_10019140.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if card.Title == "" {
+		t.Fatal("empty title")
+	}
+	t.Logf("vek21 title=%q price=%v", card.Title, card.Price)
+}
