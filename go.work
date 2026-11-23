@@ -35,8 +35,8 @@ use (
 	./rate_limit
 	./redis
 	./search
-	./shopparser
-	./productparse
+	./crawler
+	./parser
 	./telegram
 	./ws
 )

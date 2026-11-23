@@ -29,8 +29,9 @@ Multi-module Go infrastructure library for Alepsios backend services.
 | `mcpx` | `github.com/ibednov/go-lepsios/mcpx` | Reusable MCP server building blocks: key secrets, scopes, auth middleware, stateless Streamable HTTP handler, read/write tool registration, coded errors, date-range + pagination helpers |
 | `geoip` | `github.com/ibednov/go-lepsios/geoip` | Local MaxMind GeoLite2 country lookup for public IP addresses |
 | `meilisearch` | `github.com/ibednov/go-lepsios/meilisearch` | Product-neutral Meilisearch HTTP client for search, document upserts, index settings, and health |
-| `shopparser` | `github.com/ibednov/go-lepsios/shopparser` | Universal shop crawl adapters (WooCommerce Store API, Tilda store, sitemap/JSON-LD/HTML) + rate-limited HTTP client |
-| `productparse` | `github.com/ibednov/go-lepsios/productparse` | Single-URL product link parse (marketplace card/price/image strategies) |
+| `parser` | `github.com/ibednov/go-lepsios/parser` | Universal product URL parsers (card/price/image; recipe + native strategies) |
+| `crawler` | `github.com/ibednov/go-lepsios/crawler` | Catalog crawlers (Discover/Fetch); optional reuse of parser for page extract |
+
 
 `search.Index.Search` and `search.Index.Suggest` accept `RequireAllTerms` to
 require every query term. The Meilisearch adapter maps it to
