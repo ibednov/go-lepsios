@@ -1,4 +1,4 @@
-**Tag:** `parser/v0.1.4` — recipes: emall, shopby, ozby, dns, vek21, steam, onliner, detmir (`html_jsonld` + `api_json`). Native: wildberries, ozon, taobao, ali1688.
+**Tag:** `parser/v0.1.5` — recipes: emall, shopby, ozby, dns, vek21, steam, onliner, detmir (`html_jsonld` + `api_json`). Overlay: `recipe.Merge` / `ParseConfigs` / `LoadConfigsFile`. Native antibot: wildberries, ozon, taobao, ali1688.
 
 # parser
 
@@ -11,11 +11,14 @@ Not a catalog crawler — see sibling leaf `crawler`.
 - `CardParser` — `ParseCard` (no image required)
 - `ProductImageParser` — `ParseProductImageURL`
 - `Registry` — host routing
-- `recipe` — config-driven kind `html_jsonld` (assemble without new Go packages)
+- `recipe` — config-driven `html_jsonld` + `api_json` (Builtin + host overlay JSON)
 
 ## Host owns
-UA defaults, CRM gates, FX, wish attach, native browser wiring (WB/Ozon).
+UA defaults, CRM gates, FX, wish attach, native browser wiring (WB/Ozon), optional extra recipe JSON.
 
 ## Native vs recipe
-- **recipe**: JSON hosts + extractors (jsonld/og) — add shops without code
-- **native/** packages: antibot, multi-hop API, store-specific quirks (WB, Ozon, …)
+- **recipe**: JSON hosts + extractors — add shops without code (`Merge(Builtin(), extras...)`)
+- **native/** packages: antibot multi-hop (WB, Ozon, taobao, 1688)
+
+## Live checks
+`go test ./parser -run Live` (skip with `-short` or `PARSER_LIVE=0`)
