@@ -77,17 +77,24 @@ for _, ref := range discovery.Refs {
 
 Optional: if adapter implements `DiagnosticAdapter`, on failure call `LastDiagnosticResponse()` and persist (bounded body + hash).
 
-### go.mod
+### go.mod (deploy) vs go.work (local only)
+
+**Product `go.mod` — tagged require only. Path `replace` is forbidden** (breaks Docker `go mod download`).
 
 ```go
 require github.com/ibednov/go-lepsios/shopparser v0.1.1
-
-// local monorepo only:
-replace github.com/ibednov/go-lepsios/shopparser => <relpath-to-go-lepsios/shopparser>
 ```
 
-Compute relpath: `python -c "import os; print(os.path.relpath('/path/to/go-lepsios/shopparser', '/path/to/product'))"`.  
-Do not `go get @v0.0.0` against a missing proxy path — hand-write require + replace, then `go mod tidy`.
+Local edit of the leaf: gitignored product `go.work`:
+
+```
+use (
+  .
+  ../../_shared/go-lepsios/shopparser
+)
+```
+
+Dockerfile must use `GOWORK=off`. Gate before push: `GOWORK=off go mod download && GOWORK=off go build ./...`.
 
 ### Adapter kinds & config JSON
 
