@@ -36,6 +36,7 @@ use (
 	./redis
 	./search
 	./shopparser
+	./productparse
 	./telegram
 	./ws
 )
