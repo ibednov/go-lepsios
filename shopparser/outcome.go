@@ -16,7 +16,8 @@ type Outcome string
 const (
 	OutcomeOK             Outcome = "ok"
 	OutcomeConfirmedEmpty Outcome = "confirmed_empty"
-	OutcomeFiltered Outcome = "filtered"
+	// OutcomeFiltered is the wire value historically stored as filtered_non_tea.
+	OutcomeFiltered Outcome = "filtered_non_tea"
 	OutcomeDiscontinued   Outcome = "discontinued"
 	OutcomeSkipped        Outcome = "skipped"
 	OutcomeParseFailed    Outcome = "parse_failed"
