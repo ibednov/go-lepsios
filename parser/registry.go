@@ -7,12 +7,14 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ibednov/go-lepsios/log"
 )
 
 type Registry struct {
+	mu         sync.RWMutex
 	strategies []Strategy
 }
 
@@ -20,10 +22,24 @@ func NewRegistry(strategies ...Strategy) *Registry {
 	return &Registry{strategies: strategies}
 }
 
+// SetStrategies replaces the live strategy list (hot-reload). Callers must pass the full set.
+func (r *Registry) SetStrategies(strategies ...Strategy) {
+	if r == nil {
+		return
+	}
+	next := make([]Strategy, len(strategies))
+	copy(next, strategies)
+	r.mu.Lock()
+	r.strategies = next
+	r.mu.Unlock()
+}
+
 func (r *Registry) StrategyNames() []string {
 	if r == nil {
 		return nil
 	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	names := make([]string, 0, len(r.strategies))
 	seen := make(map[string]struct{}, len(r.strategies))
 	for _, s := range r.strategies {
@@ -41,6 +57,11 @@ func (r *Registry) StrategyNames() []string {
 }
 
 func (r *Registry) StrategyForHost(host string) string {
+	if r == nil {
+		return "unknown"
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	for _, s := range r.strategies {
 		if s.CanHandle(host) {
 			return strategyName(s)
@@ -68,7 +89,10 @@ func (r *Registry) parse(ctx context.Context, normalizedURL string) (RawParseRes
 	}
 
 	host := strings.ToLower(u.Hostname())
-	for _, strategy := range r.strategies {
+	r.mu.RLock()
+	strategies := r.strategies
+	r.mu.RUnlock()
+	for _, strategy := range strategies {
 		if strategy.CanHandle(host) {
 			return strategy.Parse(ctx, normalizedURL)
 		}
@@ -100,7 +124,10 @@ func (r *Registry) parseCard(ctx context.Context, normalizedURL string) (RawPars
 	}
 
 	host := strings.ToLower(u.Hostname())
-	for _, strategy := range r.strategies {
+	r.mu.RLock()
+	strategies := r.strategies
+	r.mu.RUnlock()
+	for _, strategy := range strategies {
 		if strategy.CanHandle(host) {
 			if cp, ok := strategy.(CardParser); ok {
 				return cp.ParseCard(ctx, normalizedURL)
@@ -141,7 +168,10 @@ func (r *Registry) parseProductImageURL(ctx context.Context, normalizedURL strin
 	}
 
 	host := strings.ToLower(u.Hostname())
-	for _, strategy := range r.strategies {
+	r.mu.RLock()
+	strategies := r.strategies
+	r.mu.RUnlock()
+	for _, strategy := range strategies {
 		if strategy.CanHandle(host) {
 			pip, ok := strategy.(ProductImageParser)
 			if !ok {
