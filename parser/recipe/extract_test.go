@@ -110,3 +110,42 @@ func TestBuiltinPathRegexCompiles(t *testing.T) {
 		}
 	}
 }
+
+func TestExtractVek21NextData(t *testing.T) {
+	html := "<script id=\"__NEXT_DATA__\" type=\"application/json\">{\"props\": {\"pageProps\": {\"initialState\": \"{\\\"productCard\\\": {\\\"fullProductData\\\": {\\\"name\\\": \\\"Холодильник\\\", \\\"prices\\\": {\\\"salePrice\\\": 999.5, \\\"price\\\": 1100}, \\\"gallery\\\": [{\\\"type\\\": \\\"image\\\", \\\"preview\\\": \\\"https://cdn.21vek.by/a.jpg\\\"}]}}}\"}}}</script>"
+	var cfg Config
+	for _, c := range Builtin() {
+		if c.Code == "vek21" {
+			cfg = c
+			break
+		}
+	}
+	if cfg.Code == "" {
+		t.Fatal("no vek21 builtin")
+	}
+	cfg.Title = []string{"next_data_name"}
+	cfg.Price = []string{"next_data_price"}
+	cfg.Image = []string{"next_data_image"}
+	s := Extract(html, cfg)
+	if s.Title != "Холодильник" || s.Price != 999.5 {
+		t.Fatalf("got title=%q price=%v", s.Title, s.Price)
+	}
+	if s.ImageURL != "https://cdn.21vek.by/a.jpg" {
+		t.Fatalf("image=%q", s.ImageURL)
+	}
+}
+
+func TestExtractVek21JSONLD(t *testing.T) {
+	html := "<script type=\"application/ld+json\">{\"@type\":\"Product\",\"name\":\"FromLD\",\"offers\":{\"price\":10,\"priceCurrency\":\"BYN\"},\"image\":\"https://cdn.21vek.by/ld.jpg\"}</script>"
+	var cfg Config
+	for _, c := range Builtin() {
+		if c.Code == "vek21" {
+			cfg = c
+			break
+		}
+	}
+	s := Extract(html, cfg)
+	if s.Title != "FromLD" || s.Price != 10 {
+		t.Fatalf("got title=%q price=%v", s.Title, s.Price)
+	}
+}

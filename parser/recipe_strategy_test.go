@@ -11,7 +11,7 @@ func TestRecipeStrategiesBuiltin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(strats) != 4 {
+	if len(strats) != 5 {
 		t.Fatalf("len=%d", len(strats))
 	}
 	names := map[string]bool{}
@@ -20,7 +20,7 @@ func TestRecipeStrategiesBuiltin(t *testing.T) {
 			names[n.Name()] = true
 		}
 	}
-	for _, want := range []string{"emall", "shopby", "ozby", "dns"} {
+	for _, want := range []string{"emall", "shopby", "ozby", "dns", "vek21"} {
 		if !names[want] {
 			t.Fatalf("missing %s in %v", want, names)
 		}

@@ -86,6 +86,8 @@ func ExtractPage(htmlBody string, cfg Config, pathID string) Snapshot {
 			if p, ok := extractAdProduct(htmlBody); ok {
 				out.Title = p.Title
 			}
+		case "next_data_name":
+			out.Title = nextDataLookupString(htmlBody, cfg, cfg.NextDataNamePath)
 		}
 	}
 
@@ -136,6 +138,11 @@ func ExtractPage(htmlBody string, cfg Config, pathID string) Snapshot {
 					out.Title = p.Title
 				}
 			}
+		case "next_data_price":
+			if pr, ok := nextDataLookupPrice(htmlBody, cfg); ok {
+				out.Price = pr
+				out.HasPrice = true
+			}
 		}
 	}
 
@@ -155,6 +162,8 @@ func ExtractPage(htmlBody string, cfg Config, pathID string) Snapshot {
 			out.ImageURL = firstMeta(htmlBody, ogImagePattern, ogImageAlt)
 		case "image_regex":
 			out.ImageURL = firstRegexCapture(htmlBody, cfg.ImageRegexes)
+		case "next_data_image":
+			out.ImageURL = nextDataLookupString(htmlBody, cfg, cfg.NextDataImagePath)
 		case "microdata_image":
 			if m := microdataImagePattern.FindStringSubmatch(htmlBody); len(m) >= 2 {
 				out.ImageURL = strings.TrimSpace(m[1])
@@ -342,6 +351,104 @@ func upscaleFitURL(imageURL, to string) string {
 		}
 	}
 	return imageURL
+}
+
+
+
+var nextDataScript = regexp.MustCompile(`(?is)<script[^>]*id=["']__NEXT_DATA__["'][^>]*>(.*?)</script>`)
+
+func nextDataRoot(htmlBody string, cfg Config) any {
+	m := nextDataScript.FindStringSubmatch(htmlBody)
+	if len(m) < 2 {
+		return nil
+	}
+	var root any
+	if err := json.Unmarshal([]byte(m[1]), &root); err != nil {
+		return nil
+	}
+	if path := strings.TrimSpace(cfg.NextDataStateStringPath); path != "" {
+		v := walkJSON(root, path)
+		s, ok := v.(string)
+		if !ok || s == "" {
+			return nil
+		}
+		var inner any
+		if err := json.Unmarshal([]byte(s), &inner); err != nil {
+			return nil
+		}
+		return inner
+	}
+	return root
+}
+
+func nextDataLookupString(htmlBody string, cfg Config, path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+	root := nextDataRoot(htmlBody, cfg)
+	if root == nil {
+		return ""
+	}
+	v := walkJSON(root, path)
+	s, _ := v.(string)
+	return strings.TrimSpace(s)
+}
+
+func nextDataLookupPrice(htmlBody string, cfg Config) (float64, bool) {
+	root := nextDataRoot(htmlBody, cfg)
+	if root == nil {
+		return 0, false
+	}
+	for _, path := range cfg.NextDataPricePaths {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			continue
+		}
+		v := walkJSON(root, path)
+		switch x := v.(type) {
+		case float64:
+			if x > 0 {
+				return x, true
+			}
+		case json.Number:
+			f, err := x.Float64()
+			if err == nil && f > 0 {
+				return f, true
+			}
+		case string:
+			s := strings.ReplaceAll(strings.TrimSpace(x), " ", "")
+			s = strings.ReplaceAll(s, ",", ".")
+			f, err := strconv.ParseFloat(s, 64)
+			if err == nil && f > 0 {
+				return f, true
+			}
+		}
+	}
+	return 0, false
+}
+
+// walkJSON path like a.b.0.c (dot + numeric indices).
+func walkJSON(v any, path string) any {
+	cur := v
+	for _, part := range strings.Split(path, ".") {
+		if part == "" || cur == nil {
+			return nil
+		}
+		switch node := cur.(type) {
+		case map[string]any:
+			cur = node[part]
+		case []any:
+			idx, err := strconv.Atoi(part)
+			if err != nil || idx < 0 || idx >= len(node) {
+				return nil
+			}
+			cur = node[idx]
+		default:
+			return nil
+		}
+	}
+	return cur
 }
 
 

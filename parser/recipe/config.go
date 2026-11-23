@@ -33,7 +33,12 @@ type Config struct {
 	ImageFitUpscale string `json:"image_fit_upscale,omitempty"`
 	// CurrencyPathPrefix — path prefix → currency before default (e.g. "/ru/"→"RUB").
 	CurrencyPathPrefix map[string]string `json:"currency_path_prefix,omitempty"`
-	AcceptLanguage     string            `json:"accept_language,omitempty"`
+	// NextData*: __NEXT_DATA__ walk. StateStringPath = field that is nested JSON string.
+	NextDataStateStringPath string   `json:"next_data_state_string_path,omitempty"`
+	NextDataNamePath        string   `json:"next_data_name_path,omitempty"`
+	NextDataPricePaths      []string `json:"next_data_price_paths,omitempty"`
+	NextDataImagePath       string   `json:"next_data_image_path,omitempty"`
+	AcceptLanguage          string   `json:"accept_language,omitempty"`
 	UserAgent          string            `json:"user_agent,omitempty"`
 	DefaultCurrency    string            `json:"default_currency,omitempty"`
 	// Title/Price/Image/Currency: ordered extractor ids (first hit wins).
