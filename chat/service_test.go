@@ -3,7 +3,9 @@ package chat
 import (
 	"context"
 	"errors"
+	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -167,11 +169,25 @@ func (m *memRepo) ListMessages(_ context.Context, f ListMessagesFilter) ([]Messa
 		if !f.IncludeDeleted && msg.DeletedAt != nil {
 			continue
 		}
-		if f.BeforeCreatedAt != nil && !msg.CreatedAt.Before(*f.BeforeCreatedAt) {
-			continue
+		if f.BeforeCreatedAt != nil {
+			if msg.CreatedAt.After(*f.BeforeCreatedAt) {
+				continue
+			}
+			if msg.CreatedAt.Equal(*f.BeforeCreatedAt) {
+				beforeID := strings.TrimSpace(f.BeforeID)
+				if beforeID == "" || msg.ID >= beforeID {
+					continue
+				}
+			}
 		}
 		all = append(all, msg)
 	}
+	sort.Slice(all, func(i, j int) bool {
+		if all[i].CreatedAt.Equal(all[j].CreatedAt) {
+			return all[i].ID < all[j].ID
+		}
+		return all[i].CreatedAt.Before(all[j].CreatedAt)
+	})
 	total := int64(len(all))
 	if f.Offset >= len(all) {
 		return nil, total, nil
@@ -181,6 +197,62 @@ func (m *memRepo) ListMessages(_ context.Context, f ListMessagesFilter) ([]Messa
 		end = len(all)
 	}
 	return all[f.Offset:end], total, nil
+}
+
+func TestListMessagesCursorUsesIDForEqualTimestamps(t *testing.T) {
+	repo := newMemRepo()
+	svc := NewService(repo)
+	ctx := context.Background()
+	room, err := svc.EnsureChat(ctx, CreateChatInput{
+		Kind:       KindDM,
+		ExternalID: "cursor-test",
+		Members: []AddMemberInput{
+			{UserID: "u1", Role: RoleMember},
+			{UserID: "u2", Role: RoleMember},
+		},
+	})
+	require.NoError(t, err)
+
+	older := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	boundary := older.Add(time.Minute)
+	for _, msg := range []Message{
+		{ID: "a", ChatID: room.ID, SenderUserID: "u1", Body: "older", CreatedAt: older},
+		{ID: "b", ChatID: room.ID, SenderUserID: "u1", Body: "same-time-before", CreatedAt: boundary},
+		{ID: "c", ChatID: room.ID, SenderUserID: "u1", Body: "cursor", CreatedAt: boundary},
+		{ID: "d", ChatID: room.ID, SenderUserID: "u1", Body: "same-time-after", CreatedAt: boundary},
+	} {
+		repo.messages[msg.ID] = msg
+	}
+
+	rows, total, err := svc.ListMessages(ctx, "u2", ListMessagesFilter{
+		ChatID:          room.ID,
+		Limit:           50,
+		BeforeCreatedAt: &boundary,
+		BeforeID:        "c",
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(2), total)
+	require.Equal(t, []string{"a", "b"}, []string{rows[0].ID, rows[1].ID})
+	require.Equal(t, []string{"older", "same-time-before"}, []string{rows[0].Body, rows[1].Body})
+}
+
+func TestListMessagesCursorRequiresTimestamp(t *testing.T) {
+	repo := newMemRepo()
+	svc := NewService(repo)
+	chat, err := svc.EnsureChat(context.Background(), CreateChatInput{
+		Kind:       KindDM,
+		ExternalID: "cursor-invalid-test",
+		Members: []AddMemberInput{
+			{UserID: "u1", Role: RoleMember},
+		},
+	})
+	require.NoError(t, err)
+
+	_, _, err = svc.ListMessages(context.Background(), "u1", ListMessagesFilter{
+		ChatID:   chat.ID,
+		BeforeID: "message-id",
+	})
+	require.ErrorIs(t, err, ErrInvalidInput)
 }
 
 func (m *memRepo) SoftDeleteMessage(_ context.Context, chatID, messageID, deletedBy string) error {

@@ -241,6 +241,9 @@ func (s *Service) ListMessages(ctx context.Context, actorID string, f ListMessag
 	if chatID == "" || actorID == "" {
 		return nil, 0, ErrInvalidInput
 	}
+	if strings.TrimSpace(f.BeforeID) != "" && f.BeforeCreatedAt == nil {
+		return nil, 0, ErrInvalidInput
+	}
 	if _, err := s.requireChat(ctx, chatID); err != nil {
 		return nil, 0, err
 	}

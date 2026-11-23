@@ -92,9 +92,15 @@ type SoftDeleteMessageInput struct {
 
 // ListMessagesFilter pages messages inside a room.
 type ListMessagesFilter struct {
-	ChatID          string
-	Limit           int
-	Offset          int
-	IncludeDeleted  bool
+	ChatID         string
+	Limit          int
+	Offset         int
+	IncludeDeleted bool
+	// BeforeCreatedAt is an exclusive timestamp cursor when BeforeID is empty.
+	// When BeforeID is set, the exclusive cursor is the tuple
+	// (CreatedAt, ID), ordered ascending by both fields. BeforeID requires
+	// BeforeCreatedAt and lets consumers page across equal timestamps without
+	// gaps or duplicates.
 	BeforeCreatedAt *time.Time
+	BeforeID        string
 }
