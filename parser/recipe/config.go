@@ -7,8 +7,14 @@ import (
 	"strings"
 )
 
-// Kind is the config-driven HTML product page parser (jsonld / og / microdata / embedded).
-const Kind = "html_jsonld"
+// KindHTML is plain page GET + HTML extractors.
+const KindHTML = "html_jsonld"
+
+// KindAPI is path-id → JSON API GET (+ optional HTML fallback).
+const KindAPI = "api_json"
+
+// Kind is the default/legacy alias for KindHTML.
+const Kind = KindHTML
 
 // Config describes one shop (or host group) without a Go package.
 // Host wires these via RecipeStrategies (Builtin or CRM JSON later).
@@ -39,6 +45,23 @@ type Config struct {
 	NextDataPricePaths      []string `json:"next_data_price_paths,omitempty"`
 	NextDataImagePath       string   `json:"next_data_image_path,omitempty"`
 	AcceptLanguage          string   `json:"accept_language,omitempty"`
+	// --- api_json ---
+	// APIURLTemplate: {id}, {page_host} (hostname without www). Empty = HTML-only.
+	APIURLTemplate string `json:"api_url_template,omitempty"`
+	// PathKeyMode: ""|"group" = PathIDGroup; "last_segment" = onliner-style key.
+	PathKeyMode       string   `json:"path_key_mode,omitempty"`
+	RejectPathRoots   []string `json:"reject_path_roots,omitempty"`
+	StripPathSuffixes []string `json:"strip_path_suffixes,omitempty"`
+	// JSON paths; {id} substituted. First hit wins per field.
+	APITitlePaths     []string `json:"api_title_paths,omitempty"`
+	APIPricePaths     []string `json:"api_price_paths,omitempty"`
+	APICurrencyPaths  []string `json:"api_currency_paths,omitempty"`
+	APIImagePaths     []string `json:"api_image_paths,omitempty"`
+	APIFreePath       string   `json:"api_free_path,omitempty"` // bool → price 0 OK
+	APIRequireTrue    string   `json:"api_require_true,omitempty"`
+	APIPriceDivideBy  float64  `json:"api_price_divide_by,omitempty"` // e.g. 100 steam cents
+	APIHTMLFallback   bool     `json:"api_html_fallback,omitempty"`
+	CurrencyByPageHost map[string]string `json:"currency_by_page_host,omitempty"`
 	UserAgent          string            `json:"user_agent,omitempty"`
 	DefaultCurrency    string            `json:"default_currency,omitempty"`
 	// Title/Price/Image/Currency: ordered extractor ids (first hit wins).

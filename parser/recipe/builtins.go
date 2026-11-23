@@ -1,6 +1,6 @@
 package recipe
 
-// Builtin — starter html_jsonld shops (no native package).
+// Builtin — starter shops without a native package (html_jsonld + api_json).
 func Builtin() []Config {
 	return []Config{
 		{
@@ -77,11 +77,10 @@ func Builtin() []Config {
 		},
 		{
 			Version: 1, Code: "vek21",
-			Hosts:           []string{"21vek.by", "www.21vek.by", "m.21vek.by"},
-			PathRegex:       `^/([^/]+)/([^/]+)\.html$`,
-			DefaultCurrency: "BYN",
-			UserAgent:       "Mozilla/5.0 (compatible; WishimiParser/1.0)",
-			// nested: __NEXT_DATA__.props.pageProps.initialState is a JSON string
+			Hosts:                    []string{"21vek.by", "www.21vek.by", "m.21vek.by"},
+			PathRegex:               `^/([^/]+)/([^/]+)\.html$`,
+			DefaultCurrency:         "BYN",
+			UserAgent:               "Mozilla/5.0 (compatible; WishimiParser/1.0)",
 			NextDataStateStringPath: "props.pageProps.initialState",
 			NextDataNamePath:        "productCard.fullProductData.name",
 			NextDataPricePaths: []string{
@@ -94,6 +93,72 @@ func Builtin() []Config {
 			Image:             []string{"jsonld_product_image", "next_data_image", "og_image"},
 			Currency:          []string{"jsonld_price_currency", "default_currency"},
 			NoPrice:           "error",
+		},
+		{
+			Version: 1, Code: "steam",
+			Hosts:           []string{"store.steampowered.com", "www.store.steampowered.com"},
+			PathRegex:       `^/app/(\d+)(?:/|$)`,
+			PathIDGroup:     1,
+			DefaultCurrency: "USD",
+			UserAgent:       "Mozilla/5.0 (compatible; WishimiParser/1.0)",
+			APIURLTemplate:  "https://store.steampowered.com/api/appdetails?appids={id}&cc=us&l=english",
+			APIRequireTrue:  "{id}.success",
+			APIFreePath:     "{id}.data.is_free",
+			APITitlePaths:   []string{"{id}.data.name"},
+			APIPricePaths:   []string{"{id}.data.price_overview.final"},
+			APICurrencyPaths: []string{"{id}.data.price_overview.currency"},
+			APIImagePaths:    []string{"{id}.data.header_image"},
+			APIPriceDivideBy: 100,
+			NoPrice:          "error",
+		},
+		{
+			Version: 1, Code: "onliner",
+			Hosts:            []string{"catalog.onliner.by"},
+			PathKeyMode:      "last_segment",
+			RejectPathRoots:  []string{"cat", "compare", "promo", "search"},
+			StripPathSuffixes: []string{"prices", "reviews", "discussion"},
+			DefaultCurrency:  "BYN",
+			UserAgent:        "Mozilla/5.0 (compatible; WishimiParser/1.0)",
+			AcceptLanguage:   "ru",
+			APIURLTemplate:   "https://catalog.onliner.by/sdapi/catalog.api/products/{id}",
+			APITitlePaths:    []string{"extended_name", "full_name", "name"},
+			APIPricePaths:    []string{"prices.price_min.amount"},
+			APICurrencyPaths: []string{"prices.price_min.currency"},
+			APIImagePaths:    []string{"images.header"},
+			APIHTMLFallback:  true,
+			Title:            []string{"jsonld_product_name", "og_title"},
+			Price:            []string{"jsonld_aggregate_low_price", "jsonld_offer_price"},
+			Image:            []string{"jsonld_product_image", "og_image"},
+			Currency:         []string{"jsonld_price_currency", "default_currency"},
+			NoPrice:          "allow",
+		},
+		{
+			Version: 1, Code: "detmir",
+			Hosts: []string{
+				"detmir.by", "www.detmir.by",
+				"detmir.ru", "www.detmir.ru",
+				"detmir.kz", "www.detmir.kz",
+			},
+			PathRegex:   `/product/index/id/(\d+)`,
+			PathIDGroup: 1,
+			UserAgent:   "Mozilla/5.0 (compatible; WishimiParser/1.0)",
+			AcceptLanguage: "ru",
+			APIURLTemplate: "https://api.{page_host}/v4/products/{id}",
+			APITitlePaths:  []string{"item.title"},
+			APIPricePaths:  []string{"item.price.price", "item.prices.sale"},
+			APIImagePaths:  []string{"item.pictures.0.web", "item.pictures.0.original"},
+			APIHTMLFallback: true,
+			CurrencyByPageHost: map[string]string{
+				"detmir.by": "BYN",
+				"detmir.ru": "RUB",
+				"detmir.kz": "KZT",
+			},
+			DefaultCurrency: "BYN",
+			Title:           []string{"jsonld_product_name", "og_title"},
+			Price:           []string{"jsonld_offer_price"},
+			Image:           []string{"jsonld_product_image", "og_image"},
+			Currency:        []string{"jsonld_price_currency", "default_currency"},
+			NoPrice:         "error",
 		},
 	}
 }

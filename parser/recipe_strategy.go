@@ -15,7 +15,7 @@ import (
 	"github.com/ibednov/go-lepsios/parser/recipe"
 )
 
-// RecipeStrategy is a config-driven Strategy (html_jsonld kind).
+// RecipeStrategy is a config-driven Strategy (html_jsonld and/or api_json).
 type RecipeStrategy struct {
 	cfg    recipe.Config
 	path   *regexp.Regexp
@@ -26,7 +26,6 @@ func NewRecipeStrategy(cfg recipe.Config) (*RecipeStrategy, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	// apply defaults via extract path
 	var path *regexp.Regexp
 	if r := strings.TrimSpace(cfg.PathRegex); r != "" {
 		re, err := regexp.Compile(r)
@@ -86,11 +85,10 @@ func (s *RecipeStrategy) ParseCard(ctx context.Context, normalizedURL string) (R
 	if err := s.validateURL(normalizedURL); err != nil {
 		return RawParseResult{}, &SidecarError{Code: "invalid_input", Source: "parser." + s.cfg.Code + ".parse_card", Err: err}
 	}
-	body, err := s.fetch(ctx, normalizedURL)
+	snap, err := s.extract(ctx, normalizedURL)
 	if err != nil {
 		return RawParseResult{}, &SidecarError{Code: "parse_failed", Source: "parser." + s.cfg.Code + ".parse_card", Err: err}
 	}
-	snap := recipe.ExtractPage(body, s.cfg, s.pathProductID(normalizedURL))
 	if strings.TrimSpace(snap.Title) == "" {
 		return RawParseResult{}, &SidecarError{Code: "parse_failed", Source: "parser." + s.cfg.Code + ".parse_card", Err: fmt.Errorf("title not found")}
 	}
@@ -102,7 +100,16 @@ func (s *RecipeStrategy) ParseCard(ctx context.Context, normalizedURL string) (R
 	if snap.HasPrice && snap.Price > 0 {
 		p := snap.Price
 		out.Price = &p
-	} else if s.cfg.NoPrice != "allow" {
+	} else if snap.HasPrice && snap.Price == 0 && s.cfg.NoPrice == "allow" {
+		p := snap.Price
+		out.Price = &p
+	} else if s.cfg.NoPrice == "allow" {
+		// title-only OK
+	} else if snap.HasPrice && snap.Price == 0 {
+		// free product with price 0 (steam) — still set pointer
+		p := snap.Price
+		out.Price = &p
+	} else {
 		return RawParseResult{}, &SidecarError{
 			Code: "no_price", Source: "parser." + s.cfg.Code + ".parse_card",
 			Err: fmt.Errorf("no priced offers for %s", snap.Title),
@@ -115,16 +122,63 @@ func (s *RecipeStrategy) ParseProductImageURL(ctx context.Context, normalizedURL
 	if err := s.validateURL(normalizedURL); err != nil {
 		return nil, &SidecarError{Code: "invalid_input", Source: "parser." + s.cfg.Code + ".parse_product_image", Err: err}
 	}
-	body, err := s.fetch(ctx, normalizedURL)
+	snap, err := s.extract(ctx, normalizedURL)
 	if err != nil {
 		return nil, &SidecarError{Code: "parse_failed", Source: "parser." + s.cfg.Code + ".parse_product_image", Err: err}
 	}
-	snap := recipe.ExtractPage(body, s.cfg, s.pathProductID(normalizedURL))
 	if snap.ImageURL == "" {
 		return nil, nil
 	}
 	u := snap.ImageURL
 	return &u, nil
+}
+
+func (s *RecipeStrategy) extract(ctx context.Context, pageURL string) (recipe.Snapshot, error) {
+	id := s.pathProductID(pageURL)
+	if tpl := strings.TrimSpace(s.cfg.APIURLTemplate); tpl != "" {
+		apiURL, err := s.buildAPIURL(pageURL, id)
+		if err != nil {
+			return recipe.Snapshot{}, err
+		}
+		body, err := s.fetchURL(ctx, apiURL, "application/json")
+		if err == nil {
+			snap := recipe.ExtractAPI(body, s.cfg, id)
+			if strings.TrimSpace(snap.Title) != "" {
+				return snap, nil
+			}
+			err = fmt.Errorf("api extract empty")
+		}
+		if !s.cfg.APIHTMLFallback {
+			if err != nil {
+				return recipe.Snapshot{}, err
+			}
+			return recipe.Snapshot{}, fmt.Errorf("api extract empty")
+		}
+		// fall through to HTML
+	}
+	body, err := s.fetchURL(ctx, pageURL, "text/html,application/xhtml+xml")
+	if err != nil {
+		return recipe.Snapshot{}, err
+	}
+	return recipe.ExtractPage(body, s.cfg, id), nil
+}
+
+func (s *RecipeStrategy) buildAPIURL(pageURL, id string) (string, error) {
+	if id == "" && strings.Contains(s.cfg.APIURLTemplate, "{id}") {
+		return "", fmt.Errorf("missing path id for api url")
+	}
+	u, err := url.Parse(pageURL)
+	if err != nil {
+		return "", err
+	}
+	host := strings.ToLower(u.Hostname())
+	host = strings.TrimPrefix(host, "www.")
+	out := s.cfg.APIURLTemplate
+	out = strings.ReplaceAll(out, "{id}", url.PathEscape(id))
+	out = strings.ReplaceAll(out, "{page_host}", host)
+	// query escape for id in query string templates that used PathEscape wrongly —
+	// steam uses appids= in query; PathEscape is fine for digits
+	return out, nil
 }
 
 func (s *RecipeStrategy) validateURL(raw string) error {
@@ -140,6 +194,13 @@ func (s *RecipeStrategy) validateURL(raw string) error {
 		if bad != "" && strings.Contains(pathLower, strings.ToLower(bad)) {
 			return fmt.Errorf("path contains rejected %q", bad)
 		}
+	}
+	mode := strings.ToLower(strings.TrimSpace(s.cfg.PathKeyMode))
+	if mode == "last_segment" {
+		if s.pathProductID(raw) == "" {
+			return fmt.Errorf("path %q has no product key", u.Path)
+		}
+		return nil
 	}
 	if s.path != nil {
 		m := s.path.FindStringSubmatch(u.Path)
@@ -166,8 +227,14 @@ func (s *RecipeStrategy) currencyForURL(pageURL, extracted string) string {
 	}
 	u, err := url.Parse(pageURL)
 	if err == nil {
+		host := strings.ToLower(u.Hostname())
+		host = strings.TrimPrefix(host, "www.")
+		if s.cfg.CurrencyByPageHost != nil {
+			if c, ok := s.cfg.CurrencyByPageHost[host]; ok && c != "" {
+				return c
+			}
+		}
 		path := strings.ToLower(u.Path)
-		// longer prefixes first — map iteration order unstable; sort by len
 		type kv struct{ k, v string }
 		var pairs []kv
 		for k, v := range s.cfg.CurrencyPathPrefix {
@@ -185,7 +252,6 @@ func (s *RecipeStrategy) currencyForURL(pageURL, extracted string) string {
 				return p.v
 			}
 		}
-		host := strings.ToLower(u.Hostname())
 		if strings.HasSuffix(host, ".ru") {
 			return "RUB"
 		}
@@ -200,11 +266,25 @@ func (s *RecipeStrategy) currencyForURL(pageURL, extracted string) string {
 }
 
 func (s *RecipeStrategy) pathProductID(raw string) string {
-	if s.path == nil || s.cfg.PathIDGroup <= 0 {
-		return ""
-	}
 	u, err := url.Parse(raw)
 	if err != nil {
+		return ""
+	}
+	mode := strings.ToLower(strings.TrimSpace(s.cfg.PathKeyMode))
+	if mode == "last_segment" {
+		return lastSegmentKey(u.Path, s.cfg.RejectPathRoots, s.cfg.StripPathSuffixes)
+	}
+	if s.path == nil || s.cfg.PathIDGroup <= 0 {
+		// still try group 1 if path matches and PathIDGroup unset but {id} needed
+		if s.path != nil {
+			m := s.path.FindStringSubmatch(u.Path)
+			if len(m) >= 2 && s.cfg.PathIDGroup == 0 && strings.Contains(s.cfg.APIURLTemplate, "{id}") {
+				return m[1]
+			}
+			if m != nil && s.cfg.PathIDGroup > 0 && s.cfg.PathIDGroup < len(m) {
+				return m[s.cfg.PathIDGroup]
+			}
+		}
 		return ""
 	}
 	m := s.path.FindStringSubmatch(u.Path)
@@ -214,19 +294,47 @@ func (s *RecipeStrategy) pathProductID(raw string) string {
 	return m[s.cfg.PathIDGroup]
 }
 
-func (s *RecipeStrategy) fetch(ctx context.Context, pageURL string) (string, error) {
+func lastSegmentKey(path string, rejectRoots, stripSuffixes []string) string {
+	path = strings.Trim(path, "/")
+	if path == "" {
+		return ""
+	}
+	parts := strings.Split(path, "/")
+	if len(parts) < 2 {
+		return ""
+	}
+	root := strings.ToLower(parts[0])
+	for _, bad := range rejectRoots {
+		if root == strings.ToLower(strings.TrimSpace(bad)) {
+			return ""
+		}
+	}
+	last := parts[len(parts)-1]
+	for _, suf := range stripSuffixes {
+		if strings.EqualFold(last, strings.TrimSpace(suf)) {
+			if len(parts) < 3 {
+				return ""
+			}
+			last = parts[len(parts)-2]
+			break
+		}
+	}
+	return last
+}
+
+func (s *RecipeStrategy) fetchURL(ctx context.Context, targetURL, accept string) (string, error) {
 	ua := s.cfg.UserAgent
 	if ua == "" {
 		ua = "Mozilla/5.0 (compatible; Parser/1.0)"
 	}
 	var last error
 	for attempt := 0; attempt < 3; attempt++ {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 		if err != nil {
 			return "", err
 		}
 		req.Header.Set("User-Agent", ua)
-		req.Header.Set("Accept", "text/html,application/xhtml+xml")
+		req.Header.Set("Accept", accept)
 		if al := strings.TrimSpace(s.cfg.AcceptLanguage); al != "" {
 			req.Header.Set("Accept-Language", al)
 		}
