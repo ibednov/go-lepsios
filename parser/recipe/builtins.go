@@ -130,7 +130,7 @@ func Builtin() []Config {
 			Price:            []string{"jsonld_aggregate_low_price", "jsonld_offer_price"},
 			Image:            []string{"jsonld_product_image", "og_image"},
 			Currency:         []string{"jsonld_price_currency", "default_currency"},
-			NoPrice:          "allow",
+			NoPrice:          "error", // card parse: no offers → no_price (not title-only success)
 		},
 		{
 			Version: 1, Code: "detmir",
