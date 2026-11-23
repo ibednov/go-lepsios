@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/bogdanfinn/fhttp v0.6.9
 	github.com/bogdanfinn/tls-client v1.16.0
-	github.com/ibednov/go-lepsios/browser v0.0.0
+	github.com/ibednov/go-lepsios/browser v0.1.1
 	github.com/ibednov/go-lepsios/currency v0.3.0
 	github.com/ibednov/go-lepsios/log v0.1.1
 	github.com/stretchr/testify v1.11.1
