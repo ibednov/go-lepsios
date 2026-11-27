@@ -40,26 +40,30 @@ var (
 )
 
 type Config struct {
-	Version                          int               `json:"version"`
-	SitemapURL                       string            `json:"sitemap_url"`
-	ProductPathPrefixes              []string          `json:"product_path_prefixes"`
-	IncludeCategoryHints             []string          `json:"include_category_hints"`
-	ExcludeCategoryHints             []string          `json:"exclude_category_hints"`
-	ScriptTypes                      []string          `json:"script_types"`
-	DataFormats                      []string          `json:"data_formats"`
-	DefaultCurrency                  string            `json:"currency"`
-	IncludePaths                     []string          `json:"include_paths"`
-	ExcludePaths                     []string          `json:"exclude_paths"`
-	IncludeNameKeywords              []string          `json:"include_name_keywords"`
-	ExcludeNameKeywords              []string          `json:"exclude_name_keywords"`
-	CategoryURLs                     []string          `json:"category_urls"`
-	PriceSelector                    string            `json:"price_selector"`
-	UserAgent                        string            `json:"user_agent"`
-	AcceptLanguage                   string            `json:"accept_language"`
-	HTMLTitleSelector                string            `json:"html_title_selector"`
-	HTMLProductContainerSelector     string            `json:"html_product_container_selector"`
-	HTMLPriceSelector                string            `json:"html_price_selector"`
-	HTMLStockSelector                string            `json:"html_stock_selector"`
+	Version                      int      `json:"version"`
+	SitemapURL                   string   `json:"sitemap_url"`
+	ProductPathPrefixes          []string `json:"product_path_prefixes"`
+	IncludeCategoryHints         []string `json:"include_category_hints"`
+	ExcludeCategoryHints         []string `json:"exclude_category_hints"`
+	ScriptTypes                  []string `json:"script_types"`
+	DataFormats                  []string `json:"data_formats"`
+	DefaultCurrency              string   `json:"currency"`
+	IncludePaths                 []string `json:"include_paths"`
+	ExcludePaths                 []string `json:"exclude_paths"`
+	IncludeNameKeywords          []string `json:"include_name_keywords"`
+	ExcludeNameKeywords          []string `json:"exclude_name_keywords"`
+	CategoryURLs                 []string `json:"category_urls"`
+	PriceSelector                string   `json:"price_selector"`
+	UserAgent                    string   `json:"user_agent"`
+	AcceptLanguage               string   `json:"accept_language"`
+	HTMLTitleSelector            string   `json:"html_title_selector"`
+	HTMLProductContainerSelector string   `json:"html_product_container_selector"`
+	HTMLPriceSelector            string   `json:"html_price_selector"`
+	HTMLStockSelector            string   `json:"html_stock_selector"`
+	// HTMLSpecRowSelector selects specification rows (for example
+	// "tr.product-item"); the first two cell children are name and value.
+	// Values are exposed as "spec:<name>" offer attributes.
+	HTMLSpecRowSelector              string            `json:"html_spec_row_selector"`
 	HTMLOutOfStockSelector           string            `json:"html_out_of_stock_selector"`
 	HTMLWeightSelector               string            `json:"html_weight_selector"`
 	HTMLOptionSelector               string            `json:"html_option_selector"`
@@ -257,7 +261,7 @@ func validateConfig(baseURL string, cfg Config) error {
 	if slices.Contains(cfg.DataFormats, "html") && (cfg.HTMLTitleSelector == "" || (firstNonEmpty(cfg.HTMLPriceSelector, cfg.PriceSelector) == "" && cfg.HTMLOptionSelector == "")) {
 		return fmt.Errorf("html format requires html_title_selector and either html_price_selector or html_option_selector")
 	}
-	for _, selector := range []string{cfg.PriceSelector, cfg.HTMLTitleSelector, cfg.HTMLProductContainerSelector, cfg.HTMLPriceSelector, cfg.HTMLStockSelector, cfg.HTMLOutOfStockSelector, cfg.HTMLWeightSelector, cfg.HTMLOptionSelector, cfg.HTMLProductIDSelector, cfg.CategoryCardSelector, cfg.CategoryCardTitleSelector, cfg.CategoryCardPriceSelector, cfg.CategoryCardStockSelector, cfg.CategoryCardWeightSelector, cfg.CategoryEmptySelector} {
+	for _, selector := range []string{cfg.PriceSelector, cfg.HTMLTitleSelector, cfg.HTMLProductContainerSelector, cfg.HTMLPriceSelector, cfg.HTMLStockSelector, cfg.HTMLSpecRowSelector, cfg.HTMLOutOfStockSelector, cfg.HTMLWeightSelector, cfg.HTMLOptionSelector, cfg.HTMLProductIDSelector, cfg.CategoryCardSelector, cfg.CategoryCardTitleSelector, cfg.CategoryCardPriceSelector, cfg.CategoryCardStockSelector, cfg.CategoryCardWeightSelector, cfg.CategoryEmptySelector} {
 		if selector != "" && !validSelector(selector) {
 			return fmt.Errorf("unsupported HTML selector %q; use tag, #id, .class or tag.class", selector)
 		}
@@ -971,6 +975,7 @@ func (a *Adapter) parseBody(body []byte, u *url.URL, cardID string) ([]entity.Ra
 		return nil, crawlerr.ParseFailed(a.code, fmt.Errorf("no Product data found: %s", strings.Join(parseErrors, "; ")))
 	}
 	fallbackPrice := pagePriceText(body, firstNonEmpty(a.config.HTMLPriceSelector, a.config.PriceSelector))
+	pageSpecs := pageSpecRows(body, a.config.HTMLSpecRowSelector)
 	var offers []entity.RawOffer
 	seenOffers := map[string]struct{}{}
 	for _, product := range products {
@@ -1065,6 +1070,9 @@ func (a *Adapter) parseBody(body []byte, u *url.URL, cardID string) ([]entity.Ra
 				attrs[key] = value
 			}
 			for key, value := range offer.Attrs {
+				attrs[key] = value
+			}
+			for key, value := range pageSpecs {
 				attrs[key] = value
 			}
 			for key, attribute := range a.config.AttrMap {
@@ -1413,8 +1421,13 @@ func decodeProductsWithTypes(body []byte, scriptTypes []string) ([]productData, 
 			continue
 		}
 		var root any
-		if err := json.Unmarshal([]byte(strings.TrimSpace(string(match[2]))), &root); err != nil {
-			continue
+		raw := []byte(strings.TrimSpace(string(match[2])))
+		if err := json.Unmarshal(raw, &root); err != nil {
+			// Many CMS templates print names like `iPad 11" 2025` without
+			// escaping the inch mark. Retry once with stray quotes escaped.
+			if err := json.Unmarshal(repairUnescapedQuotes(raw), &root); err != nil {
+				continue
+			}
 		}
 		products = append(products, productsFromNode(root)...)
 	}
