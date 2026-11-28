@@ -58,6 +58,14 @@ type SearchRequest struct {
 	Attributes  []string `json:"attributesToRetrieve,omitempty"`
 	Highlight   []string `json:"attributesToHighlight,omitempty"`
 	ShowMatches bool     `json:"showMatchesPosition,omitempty"`
+	// Page/HitsPerPage switch to page mode (exact TotalHits instead of the
+	// estimate); leave zero to use Limit/Offset.
+	Page        int `json:"page,omitempty"`
+	HitsPerPage int `json:"hitsPerPage,omitempty"`
+	// MatchingStrategy: "last" (default), "all" (every word must match) or "frequency".
+	MatchingStrategy string `json:"matchingStrategy,omitempty"`
+	// Locales forces query languages (ISO-639-3, e.g. "rus").
+	Locales []string `json:"locales,omitempty"`
 }
 
 type SearchResult struct {
@@ -65,6 +73,8 @@ type SearchResult struct {
 	Query              string                        `json:"query"`
 	ProcessingTimeMS   int                           `json:"processingTimeMs"`
 	EstimatedTotalHits int                           `json:"estimatedTotalHits"`
+	TotalHits          int                           `json:"totalHits,omitempty"`  // page mode only
+	TotalPages         int                           `json:"totalPages,omitempty"` // page mode only
 	FacetDistribution  map[string]map[string]int     `json:"facetDistribution,omitempty"`
 	FacetStats         map[string]map[string]float64 `json:"facetStats,omitempty"`
 }
@@ -96,6 +106,15 @@ type IndexSettings struct {
 	DistinctAttribute    string              `json:"distinctAttribute,omitempty"`
 	Faceting             *FacetingSettings   `json:"faceting,omitempty"`
 	Pagination           *PaginationSettings `json:"pagination,omitempty"`
+	// LocalizedAttributes pins attribute patterns to languages (better
+	// segmentation/normalization for short Cyrillic texts than auto-detection).
+	LocalizedAttributes []LocalizedAttributes `json:"localizedAttributes,omitempty"`
+}
+
+// LocalizedAttributes is one localizedAttributes rule.
+type LocalizedAttributes struct {
+	AttributePatterns []string `json:"attributePatterns"`
+	Locales           []string `json:"locales"`
 }
 
 // MarshalJSON preserves the distinction between an omitted setting (nil) and
@@ -103,17 +122,18 @@ type IndexSettings struct {
 // empty array/map to clear a setting, while other callers may leave it untouched.
 func (s IndexSettings) MarshalJSON() ([]byte, error) {
 	type settingsJSON struct {
-		SearchableAttributes []string             `json:"searchableAttributes,omitempty"`
-		DisplayedAttributes  []string             `json:"displayedAttributes,omitempty"`
-		FilterableAttributes []string             `json:"filterableAttributes,omitempty"`
-		SortableAttributes   []string             `json:"sortableAttributes,omitempty"`
-		RankingRules         []string             `json:"rankingRules,omitempty"`
-		StopWords            *[]string            `json:"stopWords,omitempty"`
-		Synonyms             *map[string][]string `json:"synonyms,omitempty"`
-		TypoTolerance        *TypoTolerance       `json:"typoTolerance,omitempty"`
-		DistinctAttribute    string               `json:"distinctAttribute,omitempty"`
-		Faceting             *FacetingSettings    `json:"faceting,omitempty"`
-		Pagination           *PaginationSettings  `json:"pagination,omitempty"`
+		SearchableAttributes []string              `json:"searchableAttributes,omitempty"`
+		DisplayedAttributes  []string              `json:"displayedAttributes,omitempty"`
+		FilterableAttributes []string              `json:"filterableAttributes,omitempty"`
+		SortableAttributes   []string              `json:"sortableAttributes,omitempty"`
+		RankingRules         []string              `json:"rankingRules,omitempty"`
+		StopWords            *[]string             `json:"stopWords,omitempty"`
+		Synonyms             *map[string][]string  `json:"synonyms,omitempty"`
+		TypoTolerance        *TypoTolerance        `json:"typoTolerance,omitempty"`
+		DistinctAttribute    string                `json:"distinctAttribute,omitempty"`
+		Faceting             *FacetingSettings     `json:"faceting,omitempty"`
+		Pagination           *PaginationSettings   `json:"pagination,omitempty"`
+		LocalizedAttributes  []LocalizedAttributes `json:"localizedAttributes,omitempty"`
 	}
 	var stopWords *[]string
 	if s.StopWords != nil {
@@ -135,6 +155,7 @@ func (s IndexSettings) MarshalJSON() ([]byte, error) {
 		DistinctAttribute:    s.DistinctAttribute,
 		Faceting:             s.Faceting,
 		Pagination:           s.Pagination,
+		LocalizedAttributes:  s.LocalizedAttributes,
 	})
 }
 
