@@ -44,3 +44,11 @@ func TestPageSpecRows(t *testing.T) {
 		t.Fatalf("specs = %#v", specs)
 	}
 }
+
+func TestPageSpecRowsListLayout(t *testing.T) {
+	body := []byte(`<ul><li class="d-flex"><span>Диагональ экрана:</span><span class="filler"></span><span class="v">10.9"</span></li></ul>`)
+	specs := pageSpecRows(body, "li.d-flex")
+	if specs["spec:Диагональ экрана"] != `10.9"` {
+		t.Fatalf("specs = %#v", specs)
+	}
+}

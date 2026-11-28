@@ -13,7 +13,7 @@ const SpecAttrPrefix = "spec:"
 const maxSpecRows = 300
 
 // pageSpecRows extracts name/value pairs from rows matching selector. Each row
-// contributes its first two element children (td/th/dt/dd/div/span...).
+// contributes its first and last non-empty element children (td/th/dt/dd/span...).
 func pageSpecRows(body []byte, selector string) map[string]string {
 	if strings.TrimSpace(selector) == "" {
 		return nil
@@ -30,13 +30,18 @@ func pageSpecRows(body []byte, selector string) map[string]string {
 		}
 		if n.Type == htmlnode.ElementNode && matchesSelector(n, selector) {
 			var cells []string
-			for child := n.FirstChild; child != nil && len(cells) < 2; child = child.NextSibling {
+			for child := n.FirstChild; child != nil && len(cells) < 8; child = child.NextSibling {
 				if child.Type == htmlnode.ElementNode {
-					cells = append(cells, strings.Join(strings.Fields(textContent(child)), " "))
+					if text := strings.Join(strings.Fields(textContent(child)), " "); text != "" {
+						cells = append(cells, text)
+					}
 				}
 			}
-			if len(cells) == 2 && cells[0] != "" && cells[1] != "" && len(cells[0]) <= 200 && len(cells[1]) <= 500 {
-				name := strings.TrimSuffix(cells[0], ":")
+			// Name is the first non-empty cell and value the last one, which
+			// also fits "label / dotted filler / value" list layouts.
+			if len(cells) >= 2 && len(cells[0]) <= 200 && len(cells[len(cells)-1]) <= 500 {
+				cells = []string{cells[0], cells[len(cells)-1]}
+				name := strings.TrimSpace(strings.TrimSuffix(cells[0], ":"))
 				if _, exists := specs[SpecAttrPrefix+name]; !exists {
 					specs[SpecAttrPrefix+name] = cells[1]
 				}
